@@ -1,0 +1,121 @@
+Current bugs and other problems
+$Id: BUGS.txt,v 1.2 2006/02/27 16:31:07 rich Exp $
+
+1. LEFT OUTER JOIN and nullability of named columns [FIXED]
+---------------------------------------------------
+
+Consider tables like:
+
+  create table users (
+    id serial not null primary key,
+    u.name text not null,
+    ...
+  );
+  create table adverts (
+    author int references users (id),  -- could be null
+    ...
+  );
+
+and a query like:
+
+  select a.author, u.name
+    from adverts a LEFT OUTER JOIN users u on a.author = u.id
+
+The LEFT OUTER JOIN ensures that rows are returned even if the
+adverts.author field is null.  For example, this query can return
+u.name as NULL.
+
+Unfortunately our nullability heuristic doesn't work well here.  The
+u.name column is marked as NOT NULL and so we don't expect it to come
+out of the database as a NULL.
+
+The current workaround is to use PGSQL(dbh) "nullable-results" "query"
+instead of PGSQL(dbh) "query".  This disables the nullability
+heuristic for all columns, and so all return columns will have type
+"'a option".
+
+2. CREATE TEMPORARY TABLE [FIXED]
+-------------------------
+
+Normally at compile time, statements are only prepared in the
+database.  You wouldn't ordinarily want to run statements at compile
+time, since that would be dangerous.  However there is one case where
+it is desirable to run the statement, and that is if the statement
+creates a temporary table.  By actually creating the temporary table,
+we allow further statements which use the table to be checked, and
+since temporary tables are temporary, no harm is done by creating
+them, even at compile time.
+
+For this case, use PGSQL(dbh) "execute" "query" instead of PGSQL(dbh)
+"query".
+
+For example:
+
+  PGSQL(dbh,"execute") "create temporary table employees (
+     id serial not null primary key,
+     name text not null,
+     salary int4 not null,
+     email text
+  )";
+  let insert name salary email =
+    PGSQL(dbh) "insert into employees (name, salary, email)
+                values ($name, $salary, $?email)"
+  in
+  insert "Ann" 10_000_l None;
+  insert "Bob" 45_000_l None;
+  insert "Jim" 20_000_l None;
+  insert "Mary" 30_000_l (Some "mary@example.com");
+
+Note that the CREATE TEMPORARY TABLE statement needs to come before
+any statements which use the table.  There doesn't seem to be a good
+way around this.
+
+3. Specifying lists as parameters [FIXED]
+---------------------------------
+
+Suppose I want to select a subset of employees from my database.  We'd
+like to be able to write:
+
+  let employee_ids = [ 3; 4; 5 ] in
+  PGSQL(dbh) "select name from employees where id in $@employee_ids"
+
+which, at runtime, would expand to:
+
+  select name from employees where id in (3, 4, 5)
+
+The implementation of this is complex.  At compile time we prototype
+the following statement:
+
+  select name from employees where id in ($1)
+
+and get the type of $1 as the type of each element in the list.  At
+runtime we then have to be careful to cache each list arity separately
+- quite complex if there are several lists in the statement.
+
+This doesn't work at all if the list could be empty, because "... in
+()" is a syntax error in SQL.  This is a problem with the SQL
+standard.  You need to treat that as a special case.
+
+4. Generating SQL from fragments
+--------------------------------
+
+It is fairly common to construct SQL statements from string fragments,
+as in this pseudocode example:
+
+  let order_clause =
+    match key, reverse with
+    | `Author, false -> "author asc"
+    | `Author, true -> "author desc"
+    | `Title, false -> "title asc"
+    | `Title, true -> "title desc"
+  let sql =
+     "select title, author from books " ^ order_clause
+
+Such statement-building is not currently permitted by PG'OCaml, unless
+you ditch the camlp4 extension and use the low-level, unsafe
+interface. It would be nice to have some sort of "fragment
+constructor" operator to allow the above to be expressed in a
+type-safe way. However because it is not possible to compile the
+fragments, it doesn't look like such a constructor could be
+written. If anyone has any ideas about this, please contact the
+author.

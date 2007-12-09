@@ -1,0 +1,19 @@
+If PG'OCaml programs are started with the environment variable
+$PGPROFILING pointing to the name of a writable file, then profiling
+information about events is written to this file.
+
+This information can be analysed later by using the pgocaml_prof tool.
+
+For example:
+  PGPROFILING=$HOME/.test_prof
+  export PGPROFILING
+  ./test
+  pgocaml_prof $HOME/.test_prof | less
+
+Information currently tracked includes the running time for SQL
+statements and connection time.  You can usually use this information
+to find out which statements are taking too long, and optimise them
+accordingly.
+
+The profile file will contain some potentially sensitive information
+such as database and user names (but not passwords).
