@@ -1,0 +1,12 @@
+*.cmi
+*.cmo
+*.cmx
+*.cma
+*.cmxa
+test_pgocaml_lowlevel
+test_pgocaml
+META
+html
+pgocaml-*.tar.gz
+pgocaml_prof
+report.txt

@@ -1,0 +1,8 @@
+Gabriel de Perthuis
+gabriel.de-perthuis at laposte.net
+
+Contributed patches to make OMakefile builds work using a '-syntax' flag.
+
+Dario Teixeira
+
+Tutorial and suggestions for fixes.
