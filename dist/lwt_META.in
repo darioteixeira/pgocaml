@@ -1,0 +1,14 @@
+name="@PACKAGE@"
+version="@VERSION@"
+description="PG'OCaml is a set of OCaml bindings for the PostgreSQL database."
+requires="unix,extlib,csv,pcre,calendar,lwt"
+archive(byte)="pgocaml.cma"
+archive(native)="pgocaml.cmxa"
+
+package "statements" (
+  requires = "pgocaml,camlp4"
+  version = "@VERSION@"
+  description = "Syntax extension: PostgreSQL statements checked at compile-time"
+  archive(syntax,preprocessor) = "lwt_pa_pgsql.cmo"
+  archive(syntax,toploop) = "lwt_pa_pgsql.cmo"
+)

@@ -5,8 +5,23 @@ include Makefile.config
 SED	:= sed
 FGREP	:= fgrep
 
+ifdef LWT
+LWT_PREFIX	:= lwt_
+LWT_PGOCAML_SRC	:= lwt_extutil.ml lwt_PGOCaml.ml
+LWT_PGOCAML	:= lwt_extutil.cmo lwt_PGOCaml.cmo
+LWT_CMI		:= lwt_extutil.cmi lwt_PGOCaml.cmi
+LWT_PACKAGE	:= ",lwt"
+LWT_P4 := $(shell ocamlc -where)/threads/threads.cma \
+          -I +ssl $(shell ocamlfind query ssl)/ssl.cma \
+          -I +lwt $(shell ocamlfind query lwt)/lwt.cma
+else
+PA_FILE		:= pa_pgsql.ml4
+endif
+
+CAMLP4O := camlp4o.byte
+
 OCAMLCFLAGS	:= -g
-OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv
+OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv$(LWT_PACKAGE)
 OCAMLCLIBS	:= -linkpkg
 
 OCAMLOPTFLAGS	:=
@@ -22,6 +37,7 @@ FOR_P4	:= \
 	-I +extlib $(shell ocamlfind query extlib)/extLib.cma \
 	-I +calendar $(shell ocamlfind query calendar)/calendar.cma \
 	-I +csv $(shell ocamlfind query csv)/csv.cma \
+	$(LWT_P4) \
 	./pgocaml.cma
 
 # This is split into two because back-tick notation
@@ -33,16 +49,16 @@ ifdef WINDOWS
   EXECUTABLE_SUFFIX := .exe
 endif
 
-OBJS	:= pGOCaml_config.cmo pGOCaml.cmo
+OBJS	:= pGOCaml_config.cmo pGOCaml.cmo $(LWT_PGOCAML)
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
-all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
+all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa $(LWT_PREFIX)pa_pgsql.cmo $(LWT_PGOCAML) test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) $(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
 
 test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
 	  pgocaml.cma -o $@ $<
 
-test_pgocaml$(EXECUTABLE_SUFFIX): test_pgocaml.cmo pgocaml.cma
+$(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX): $(LWT_PREFIX)test_pgocaml.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
 	  pgocaml.cma -o $@ $<
 
@@ -50,16 +66,16 @@ pgocaml_prof$(EXECUTABLE_SUFFIX): pgocaml_prof.cmx
 	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTPACKAGES) $(OCAMLOPTLIBS) \
 	  -o $@ $<
 
-test_pgocaml.cmo: test_pgocaml.ml pgocaml.cma pa_pgsql.cmo
+$(LWT_PREFIX)test_pgocaml.cmo: $(LWT_PREFIX)test_pgocaml.ml pgocaml.cma $(LWT_PREFIX)pa_pgsql.cmo
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" -c $<
+	  -pp "$(CAMLP4O) $(FOR_P4) ./$(LWT_PREFIX)pa_pgsql.cmo" -c $<
 
 print_test: force
-	camlp4o $(FOR_P4) ./pa_pgsql.cmo pr_o.cmo test_pgocaml.ml
+	$(CAMLP4O) $(FOR_P4) ./$(LWT_PREFIX)pa_pgsql.cmo pr_o.cmo $(LWT_PREFIX)test_pgocaml.ml
 
-pa_pgsql.cmo: pa_pgsql.ml4
+$(LWT_PREFIX)pa_pgsql.cmo: $(LWT_PREFIX)pa_pgsql.ml4
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
-	  -pp "camlp4o pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
+	  -pp "$(CAMLP4O) pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
 	  -I +camlp4 -c -impl $<
 
 pgocaml.cma: $(OBJS)
@@ -82,7 +98,7 @@ pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 
 # Findlib META file.
 
-META:	META.in Makefile.config
+META:	$(LWT_PREFIX)META.in Makefile.config
 	$(SED)  -e 's/@PACKAGE@/$(PACKAGE)/' \
 		-e 's/@VERSION@/$(VERSION)/' \
 		< $< > $@
@@ -91,7 +107,7 @@ META:	META.in Makefile.config
 
 clean:
 	rm -f *.cmi *.cmo *.cmx *.cma *.cmxa *.o *.a *.so *~ core META \
-	test_pgocaml_lowlevel test_pgocaml pgocaml_prof
+	test_pgocaml_lowlevel $(LWT_PREFIX)test_pgocaml pgocaml_prof
 
 # Dependencies.
 
@@ -99,8 +115,8 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml.mli pGOCaml.ml test_pgocaml_lowlevel.ml > $@
-	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
+	ocamldep pGOCaml.mli pGOCaml.ml $(LWT_PGOCAML_SRC) test_pgocaml_lowlevel.ml > $@
+	-ocamldep -pp "$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
 
 ifeq ($(wildcard .depend),.depend)
 include .depend
@@ -109,11 +125,11 @@ endif
 # Install.
 
 findlib_install:
-	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] $(LWT_CMI) pa_pgsql.cmo
 
 reinstall:
 	ocamlfind remove pgocaml
-	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install pgocaml META pgocaml.{,cm{,x}}a pGOCaml.cm[ix] pa_pgsql.cmo
 
 install:
 	rm -rf $(DESTDIR)$(OCAMLLIBDIR)/pgocaml
@@ -170,7 +186,7 @@ dpkg:
 doc:
 	rm -rf html
 	mkdir html
-	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml.mli pGOCaml.ml
+	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml.ml{i,}
 
 force:
 
