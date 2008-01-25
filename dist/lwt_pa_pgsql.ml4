@@ -270,14 +270,23 @@ let pgsql_expand ?(flags = []) loc dbh query =
       (* Have we prepared this statement already?  If not, do so. *)
       let is_prepared = Hashtbl.mem hash name in
       do {
-	bind (if not is_prepared then 
-	begin
-	  bind (Lwt_PGOCaml.prepare dbh ~name ~query ())
-          (fun () -> return (Hashtbl.add hash name True))
-	end	
+			bind
+				(if not is_prepared then 
+				begin
+	  			bind
+						(Lwt_PGOCaml.lock_connection dbh;
+						Lwt_PGOCaml.prepare dbh ~name ~query ())
+          	(fun () -> return (Hashtbl.add hash name True))
+				end	
         else return ())
 	(* Execute the statement, returning the rows. *)
-	(fun () -> Lwt_PGOCaml.execute dbh ~name ~params ())
+				(fun () -> 
+					let r = Lwt_PGOCaml.execute dbh ~name ~params () in
+					do 
+					{
+						Lwt_PGOCaml.unlock_connection dbh;
+						r
+					})
       }
     >> in
 

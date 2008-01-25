@@ -1,6 +1,4 @@
 pGOCaml.cmo: pGOCaml_config.cmo pGOCaml.cmi 
 pGOCaml.cmx: pGOCaml_config.cmx pGOCaml.cmi 
-lwt_PGOCaml.cmo: pGOCaml_config.cmo pGOCaml.cmi lwt_extutil.cmo 
-lwt_PGOCaml.cmx: pGOCaml_config.cmx pGOCaml.cmx lwt_extutil.cmx 
 test_pgocaml_lowlevel.cmo: pGOCaml.cmi 
 test_pgocaml_lowlevel.cmx: pGOCaml.cmx 

@@ -6,7 +6,7 @@ SED	:= sed
 FGREP	:= fgrep
 
 ifdef LWT
-LWT_PREFIX	:= lwt_
+LWT_PA_PGSQL := lwt_pa_pgsql.cmo
 LWT_PGOCAML_SRC	:= lwt_extutil.ml lwt_PGOCaml.ml
 LWT_PGOCAML	:= lwt_extutil.cmo lwt_PGOCaml.cmo
 LWT_CMI		:= lwt_extutil.cmi lwt_PGOCaml.cmi
@@ -52,7 +52,7 @@ endif
 OBJS	:= pGOCaml_config.cmo pGOCaml.cmo $(LWT_PGOCAML)
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
-all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa $(LWT_PREFIX)pa_pgsql.cmo $(LWT_PGOCAML) test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) $(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
+all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo $(LWT_PA_PGSQL) $(LWT_PGOCAML) test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) $(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
 
 test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
@@ -73,7 +73,12 @@ $(LWT_PREFIX)test_pgocaml.cmo: $(LWT_PREFIX)test_pgocaml.ml pgocaml.cma $(LWT_PR
 print_test: force
 	$(CAMLP4O) $(FOR_P4) ./$(LWT_PREFIX)pa_pgsql.cmo pr_o.cmo $(LWT_PREFIX)test_pgocaml.ml
 
-$(LWT_PREFIX)pa_pgsql.cmo: $(LWT_PREFIX)pa_pgsql.ml4
+pa_pgsql.cmo: pa_pgsql.ml4
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
+	  -pp "$(CAMLP4O) pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
+	  -I +camlp4 -c -impl $<
+
+lwt_pa_pgsql.cmo: lwt_pa_pgsql.ml4
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
 	  -pp "$(CAMLP4O) pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
 	  -I +camlp4 -c -impl $<
@@ -125,7 +130,7 @@ endif
 # Install.
 
 findlib_install:
-	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] $(LWT_CMI) pa_pgsql.cmo
+	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] $(LWT_CMI) pa_pgsql.cmo $(LWT_PA_PGSQL)
 
 reinstall:
 	ocamlfind remove pgocaml

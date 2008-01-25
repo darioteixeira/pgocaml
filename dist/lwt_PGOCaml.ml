@@ -14,7 +14,19 @@ type 'a t = {
   chan : Lwt_chan.out_channel;		(* Out_channel wrapping socket. *)
   mutable private_data : 'a option;
   uuid : string;			(* UUID for this connection. *)
+	mutex : Lwt_mutex.t; (* mutex for this connection *)
 }
+
+let uuid_of_conn conn =
+	conn.uuid;;
+
+let lock_connection conn =
+	eprintf "[PGOCaml] [%s] locking\n%!" conn.uuid;
+	Lwt_mutex.lock conn.mutex;;
+
+let unlock_connection conn =
+	eprintf "[PGOCaml] [%s] unlocking\n%!" conn.uuid;
+	Lwt_mutex.unlock conn.mutex;;
 
 let debug_protocol = false
 
@@ -626,7 +638,8 @@ let connect ?host ?port ?user ?(password = "") ?database
 		 ichan = ichan;
 		 chan = chan;
 		 private_data = None;
-		 uuid = uuid } in
+		 uuid = uuid;
+		 mutex = Lwt_mutex.create () } in
 
     (* Send the StartUpMessage.  NB. At present we do not support SSL. *)
     let msg = new_start_message () in
@@ -742,6 +755,7 @@ let flush_msg conn =
 
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
+		eprintf "[PGOCaml] [%s] do_prepare\n%!" conn.uuid;
     let msg = new_message 'P' in
     add_string msg name;
     add_string msg query;
@@ -770,7 +784,8 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
 
 let execute conn ?(name = "") ?(portal = "") ~params () =
   let do_execute () =
-    (* Bind *)
+    eprintf "[PGOCaml] [%s] do_execute\n%!" conn.uuid;
+		(* Bind *)
     let msg = new_message 'B' in
     add_string msg portal;
     add_string msg name;
@@ -809,8 +824,7 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
       (* NB: receive_message flushes the output connection. *)
       receive_message conn >>=
       fun x -> return (parse_backend_message x) >>=
-      fun msg ->
-      match msg with
+      fun msg -> match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
       | NoticeResponse err ->
@@ -848,7 +862,7 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
     loop () >>=
 
     (* Return the result rows. *)
-    fun () -> return (List.rev !rows)
+			fun () -> return (List.rev !rows)
   in
   (* We used to append the parameters here, but that leads to
    * problems with parsing, and may leak sensitive data.  In any
@@ -860,24 +874,28 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
 
 let begin_work conn =
   let query = "begin work" in
+	lock_connection conn;
   prepare conn ~query () >>=
   fun () -> execute conn ~params:[] () >>=
-  fun _ -> return ()
+  fun _ -> unlock_connection conn; return ()
 
 let commit conn =
   let query = "commit" in
+	lock_connection conn;
   prepare conn ~query () >>=
   fun () -> execute conn ~params:[] () >>=
-  fun _ -> return ()
+  fun _ -> unlock_connection conn; return ()
 
 let rollback conn =
   let query = "rollback" in
+	lock_connection conn;
   prepare conn ~query () >>=
   fun () -> execute conn ~params:[] () >>=
-  fun _ -> return ()
+  fun _ -> unlock_connection conn; return ()
 
 let serial conn name =
   let query = "select currval ($1)" in
+	lock_connection conn;
   prepare conn ~query () >>=
   fun () -> execute conn ~params:[Some name] () >>=
   fun rows -> 
@@ -886,6 +904,7 @@ let serial conn name =
   (* NB. According to the manual, the return type of currval is
    * always a bigint, whether or not the column is serial or bigserial.
    *)
+	 unlock_connection conn;
   return (Int64.of_string (Option.get result))
 
 let serial4 conn name =
