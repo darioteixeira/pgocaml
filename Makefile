@@ -151,12 +151,7 @@ dist:
 	ls -l $(PACKAGE)-$(VERSION).tar.gz
 
 check-manifest:
-	@for d in `find -type d -name CVS | grep -v '^\./debian/'`; \
-	do \
-	b=`dirname $$d`/; \
-	awk -F/ '$$1 != "D" {print $$2}' $$d/Entries | \
-	sed -e "s|^|$$b|" -e "s|^\./||"; \
-	done | sort > .check-manifest; \
+	svn list | sort > .check-manifest; \
 	sort MANIFEST > .orig-manifest; \
 	diff -u .orig-manifest .check-manifest; rv=$$?; \
 	rm -f .orig-manifest .check-manifest; \
