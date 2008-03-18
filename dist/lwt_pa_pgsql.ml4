@@ -1,5 +1,23 @@
 (* $Id: pa_pgsql.ml4,v 1.13 2007-09-03 17:18:38 rich Exp $
  * -*- tuareg-mode -*-
+ *
+ * PG'OCaml - type safe interface to PostgreSQL.
+ * Copyright (C) 2005-2008 Richard Jones and other authors.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this library; see the file COPYING.  If not, write to
+ * the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
  *)
 
 open Camlp4.PreCast
@@ -7,7 +25,6 @@ open Camlp4.PreCast
 open Printf
 open ExtString
 open ExtList
-open Lwt
 
 let nullable_name = "nullable"
 
@@ -62,7 +79,7 @@ let rec range a b =
 
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
-let pgsql_expand ?(flags = []) loc dbh query =
+let lwt_pgsql_expand ?(flags = []) loc dbh query =
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
@@ -269,25 +286,14 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	      } ] in
       (* Have we prepared this statement already?  If not, do so. *)
       let is_prepared = Hashtbl.mem hash name in
-      do {
 			bind
-				(if not is_prepared then 
-				begin
-	  			bind
-						(Lwt_PGOCaml.lock_connection dbh;
-						Lwt_PGOCaml.prepare dbh ~name ~query ())
-          	(fun () -> return (Hashtbl.add hash name True))
-				end	
+	(if not is_prepared then
+	  bind
+		(Lwt_PGOCaml.prepare dbh ~name ~query ())
+	  (fun () -> (Hashtbl.add hash name True; return ()))
         else return ())
 	(* Execute the statement, returning the rows. *)
-				(fun () -> 
-					let r = Lwt_PGOCaml.execute dbh ~name ~params () in
-					do 
-					{
-						Lwt_PGOCaml.unlock_connection dbh;
-						r
-					})
-      }
+	(fun () -> Lwt_PGOCaml.execute dbh ~name ~params ())
     >> in
 
   (* If we're expecting any result rows, then generate a function to
@@ -349,7 +355,8 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    <:expr< ( $conversion$, $Ast.exCom_of_list conversions$ ) >> in
 
       <:expr<
-	bind ($expr$) (fun rows -> 
+	 bind ($expr$)
+	 (fun rows -> 
 	let original_query = $str:query$ in
 	Lwt_util.map (
 	  fun row ->
@@ -375,7 +382,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 
   | None ->
       <:expr<
-	bind ($expr$) (fun _ -> return ())
+	  bind ($expr$) (fun _ -> return ())
       >>
 
 open Syntax
@@ -388,7 +395,7 @@ EXTEND Gram
 	  match List.rev extras with
 	  | [] -> assert false
 	  | query :: flags -> query, flags in
-	pgsql_expand ~flags loc dbh (Camlp4.Struct.Token.Eval.string query)
+	lwt_pgsql_expand ~flags loc dbh (Camlp4.Struct.Token.Eval.string query)
     ]
   ];
 END

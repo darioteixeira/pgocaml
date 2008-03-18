@@ -4,6 +4,7 @@
 
 open Printf
 open ExtString
+open CalendarLib
 
 type 'a t = {
   ichan : in_channel;			(* In_channel wrapping socket. *)

@@ -2,6 +2,7 @@
  * $Id: pGOCaml.mli,v 1.14 2007-10-14 14:52:27 rich Exp $
  *)
 
+
 type 'a t				(** Database handle. *)
 
 exception Error of string
@@ -177,7 +178,7 @@ val name_of_type : ?modifier:int32 -> oid -> string
   * example, [name_of_type (Int32.of_int 25)] returns ["string"].
   *)
 
-type timestamptz = Calendar.t * Time_Zone.t
+type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 
 type int16 = int
 type bytea = string (* XXX *)
@@ -191,11 +192,11 @@ val string_of_int16 : int16 -> string
 val string_of_int32 : int32 -> string
 val string_of_int64 : int64 -> string
 val string_of_float : float -> string
-val string_of_timestamp : Calendar.t -> string
+val string_of_timestamp : CalendarLib.Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
-val string_of_date : Date.t -> string
-val string_of_time : Time.t -> string
-val string_of_interval : Calendar.Period.t -> string
+val string_of_date : CalendarLib.Date.t -> string
+val string_of_time : CalendarLib.Time.t -> string
+val string_of_interval : CalendarLib.Calendar.Period.t -> string
 val string_of_int32_array : int32_array -> string
 val string_of_bytea : bytea -> string
 val string_of_string : string -> string
@@ -207,11 +208,11 @@ val int16_of_string : string -> int16
 val int32_of_string : string -> int32
 val int64_of_string : string -> int64
 val float_of_string : string -> float
-val timestamp_of_string : string -> Calendar.t
+val timestamp_of_string : string -> CalendarLib.Calendar.t
 val timestamptz_of_string : string -> timestamptz
-val date_of_string : string -> Date.t
-val time_of_string : string -> Time.t
-val interval_of_string : string -> Calendar.Period.t
+val date_of_string : string -> CalendarLib.Date.t
+val time_of_string : string -> CalendarLib.Time.t
+val interval_of_string : string -> CalendarLib.Calendar.Period.t
 val int32_array_of_string : string -> int32_array
 val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit

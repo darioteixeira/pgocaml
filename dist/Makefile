@@ -10,10 +10,11 @@ LWT_PA_PGSQL := lwt_pa_pgsql.cmo
 LWT_PGOCAML_SRC	:= lwt_extutil.ml lwt_PGOCaml.ml
 LWT_PGOCAML	:= lwt_extutil.cmo lwt_PGOCaml.cmo
 LWT_CMI		:= lwt_extutil.cmi lwt_PGOCaml.cmi
-LWT_PACKAGE	:= ",lwt"
+LWT_PACKAGE	:= ,lwt
 LWT_P4 := $(shell ocamlc -where)/threads/threads.cma \
           -I +ssl $(shell ocamlfind query ssl)/ssl.cma \
           -I +lwt $(shell ocamlfind query lwt)/lwt.cma
+LWT_PREFIX := lwt_
 else
 PA_FILE		:= pa_pgsql.ml4
 endif
@@ -21,7 +22,7 @@ endif
 CAMLP4O := camlp4o.byte
 
 OCAMLCFLAGS	:= -g
-OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv$(LWT_PACKAGE)
+OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv${LWT_PACKAGE}
 OCAMLCLIBS	:= -linkpkg
 
 OCAMLOPTFLAGS	:=
@@ -35,7 +36,7 @@ FOR_P4	:= \
 	$(shell ocamlc -where)/str.cma \
 	-I +pcre $(shell ocamlfind query pcre)/pcre.cma \
 	-I +extlib $(shell ocamlfind query extlib)/extLib.cma \
-	-I +calendar $(shell ocamlfind query calendar)/calendar.cma \
+	-I +calendar $(shell ocamlfind query calendar)/calendarLib.cmo \
 	-I +csv $(shell ocamlfind query csv)/csv.cma \
 	$(LWT_P4) \
 	./pgocaml.cma
@@ -58,7 +59,11 @@ test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
 	  pgocaml.cma -o $@ $<
 
-$(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX): $(LWT_PREFIX)test_pgocaml.cmo pgocaml.cma
+test_pgocaml$(EXECUTABLE_SUFFIX): test_pgocaml.cmo pgocaml.cma
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
+	  pgocaml.cma -o $@ $<
+
+lwt_test_pgocaml$(EXECUTABLE_SUFFIX): lwt_test_pgocaml.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
 	  pgocaml.cma -o $@ $<
 
@@ -66,12 +71,19 @@ pgocaml_prof$(EXECUTABLE_SUFFIX): pgocaml_prof.cmx
 	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTPACKAGES) $(OCAMLOPTLIBS) \
 	  -o $@ $<
 
-$(LWT_PREFIX)test_pgocaml.cmo: $(LWT_PREFIX)test_pgocaml.ml pgocaml.cma $(LWT_PREFIX)pa_pgsql.cmo
+test_pgocaml.cmo: test_pgocaml.ml pgocaml.cma pa_pgsql.cmo
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  -pp "$(CAMLP4O) $(FOR_P4) ./$(LWT_PREFIX)pa_pgsql.cmo" -c $<
+	  -pp "$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo" -c $<
+
+lwt_test_pgocaml.cmo: lwt_test_pgocaml.ml pgocaml.cma lwt_pa_pgsql.cmo
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
+	  -pp "$(CAMLP4O) $(FOR_P4) ./lwt_pa_pgsql.cmo" -c $<
 
 print_test: force
-	$(CAMLP4O) $(FOR_P4) ./$(LWT_PREFIX)pa_pgsql.cmo pr_o.cmo $(LWT_PREFIX)test_pgocaml.ml
+	$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo pr_o.cmo test_pgocaml.ml
+
+print_lwt_test: force
+	$(CAMLP4O) $(FOR_P4) ./lwt_pa_pgsql.cmo pr_o.cmo lwt_test_pgocaml.ml
 
 pa_pgsql.cmo: pa_pgsql.ml4
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
