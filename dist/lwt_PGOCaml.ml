@@ -627,8 +627,8 @@ let connect ?host ?port ?user ?(password = "") ?database
 		and fd = Lwt_unix.socket (Unix.domain_of_sockaddr sockaddr) Unix.SOCK_STREAM 0 in
 		Lwt_unix.connect fd sockaddr >>=
 		fun () ->
-		let ichan = Lwt_unix.in_channel_of_descr fd
-		and chan = Lwt_unix.out_channel_of_descr fd in
+		let ichan = Lwt_chan.in_channel_of_descr fd
+		and chan = Lwt_chan.out_channel_of_descr fd in
 
     (* Create the connection structure. *)
     let conn = { fd = fd;
