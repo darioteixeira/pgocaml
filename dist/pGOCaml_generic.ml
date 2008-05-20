@@ -2,21 +2,38 @@
  * $Id: pGOCaml.ml,v 1.24 2007-10-14 14:52:27 rich Exp $
  *)
 
-open Lwt
 open Printf
 open ExtString
 open CalendarLib
 
+module Make (Thread : sig
+  type 'a t
+  val return : 'a -> 'a t
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  val fail : exn -> 'a t
+
+  type in_channel
+  type out_channel
+  val open_connection : Unix.sockaddr -> (in_channel * out_channel) t
+  val output_char : out_channel -> char -> unit t
+  val output_binary_int : out_channel -> int -> unit t
+  val output_string : out_channel -> string -> unit t
+  val flush : out_channel -> unit t
+  val input_char : in_channel -> char t
+  val input_binary_int : in_channel -> int t
+  val really_input : in_channel -> string -> int -> int -> unit t
+  val close_in : in_channel -> unit t
+
+end) = struct
+
+open Thread
+
 type 'a t = {
-	fd : Lwt_unix.file_descr;
-  ichan : Lwt_chan.in_channel;			(* In_channel wrapping socket. *)
-  chan : Lwt_chan.out_channel;			(* Out_channel wrapping socket. *)
+  ichan : in_channel;			(* In_channel wrapping socket. *)
+  chan : out_channel;			(* Out_channel wrapping socket. *)
   mutable private_data : 'a option;
   uuid : string;			(* UUID for this connection. *)
-	mutex : Lwt_mutex.t;
 }
-
-let uuid_of_conn x = x.uuid;
 
 exception Error of string
 
@@ -95,15 +112,15 @@ let send_message { chan = chan } (buf, typ) =
 
   (* Write the type byte? *)
   (match typ with
-   | None -> return ()
-   | Some c -> Lwt_extutil.output_char chan c
-  ) >>=
+   | None -> Thread.return ()
+   | Some c -> output_char chan c
+  ) >>= fun () ->
 
   (* Write the length field. *)
-  fun () -> Lwt_extutil.output_binary_int chan len >>=
+  output_binary_int chan len >>= fun () ->
 
   (* Write the buffer. *)
-  fun () -> Lwt_chan.output_string chan (Buffer.contents buf) 
+  output_string chan (Buffer.contents buf)
 
 (* Max message length accepted from back-end. *)
 let max_message_length = ref Sys.max_string_length
@@ -113,43 +130,43 @@ let max_message_length = ref Sys.max_string_length
  *)
 let receive_message { ichan = ichan; chan = chan } =
   (* Flush output buffer. *)
-  Lwt_chan.flush chan >>=
+  flush chan >>= fun () ->
 
-  fun () -> Lwt_chan.input_char ichan >>=
-  fun typ -> Lwt_extutil.input_binary_int ichan >>=
-	fun len -> 
+  input_char ichan >>= fun typ ->
+  input_binary_int ichan >>= fun len ->
 
   (* Discount the length word itself. *)
   let len = len - 4 in
 
   (* If the message is too long, give up now. *)
-  (if len > !max_message_length then (
+  if len > !max_message_length then (
     (* Skip the message so we stay in synch with the stream. *)
     let bufsize = 65_536 in
     let buf = String.create bufsize in
-		Lwt_extutil.lwt_while len (fun n -> n > 0)
-		(fun n ->
-      let m = min n bufsize in
-      Lwt_chan.really_input ichan buf 0 m >>=
-      fun () -> return (n - m)) >>=
-		fun () ->
+    let rec loop n =
+      if n > 0 then begin
+        let m = min n bufsize in
+        really_input ichan buf 0 m >>= fun () ->
+        loop (n - m)
+      end else
+        return ()
+    in
+    loop len >>= fun () ->
 
     fail (Error
 	     "PGOCaml: back-end message is longer than max_message_length")
-  )
-	else
-		return ()) >>=
+  ) else (
 
-	fun () ->
-  (* Read the binary message content. *)
-  let msg = String.create len in
-  Lwt_chan.really_input ichan msg 0 len >>=
-	fun () -> return (typ, msg);;
+    (* Read the binary message content. *)
+    let msg = String.create len in
+    really_input ichan msg 0 len >>= fun () ->
+    return (typ, msg)
+  )
 
 (* Send a message and expect a single result. *)
 let send_recv conn msg =
-  send_message conn msg >>=
-	fun () -> receive_message conn;;
+  send_message conn msg >>= fun () ->
+  receive_message conn
 
 (* Parse a back-end message. *)
 type msg_t =
@@ -227,7 +244,6 @@ let string_of_msg_t = function
   | UnknownMessage (typ, msg) ->
       sprintf "UnknownMessage %c, %S" typ msg
 
-(* XXX should remain lwt-less *)
 let parse_backend_message (typ, msg) =
   let pos = ref 0 in
   let len = String.length msg in
@@ -486,13 +502,14 @@ let pg_error ?conn fields =
    | None -> return ()
    | Some conn ->
        let rec loop () =
-	 receive_message conn >>=
-	 fun received_msg -> let msg = parse_backend_message received_msg in
+	 receive_message conn >>= fun msg ->
+	 let msg = parse_backend_message msg in
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
        loop ()
-  ) >>=
-	fun () -> fail (PostgreSQL_Error (str, fields));;
+  ) >>= fun () ->
+
+  fail (PostgreSQL_Error (str, fields))
 
 (*----- Profiling. -----*)
 
@@ -623,20 +640,13 @@ let connect ?host ?port ?user ?(password = "") ?database
   let uuid = Digest.to_hex (Digest.string uuid) in
 
   let do_connect () =
-		let mutex = Lwt_mutex.create () 
-		and fd = Lwt_unix.socket (Unix.domain_of_sockaddr sockaddr) Unix.SOCK_STREAM 0 in
-		Lwt_unix.connect fd sockaddr >>=
-		fun () ->
-		let ichan = Lwt_chan.in_channel_of_descr fd
-		and chan = Lwt_chan.out_channel_of_descr fd in
+    open_connection sockaddr >>= fun (ichan, chan) ->
 
     (* Create the connection structure. *)
-    let conn = { fd = fd;
-		 ichan = ichan;
+    let conn = { ichan = ichan;
 		 chan = chan;
 		 private_data = None;
-		 uuid = uuid;
-		 mutex = mutex; } in
+		 uuid = uuid } in
 
     (* Send the StartUpMessage.  NB. At present we do not support SSL. *)
     let msg = new_start_message () in
@@ -647,10 +657,10 @@ let connect ?host ?port ?user ?(password = "") ?database
 
     (* Loop around here until the database gives a ReadyForQuery message. *)
     let rec loop msg =
-	(match msg with
+      (match msg with
 	| Some msg -> send_recv conn msg
-	| None -> receive_message conn) >>=
-		fun rmsg -> let msg = parse_backend_message rmsg in
+	| None -> receive_message conn) >>= fun msg ->
+      let msg = parse_backend_message msg in
 
       match msg with
       | ReadyForQuery _ -> return () (* Finished connecting! *)
@@ -691,9 +701,9 @@ let connect ?host ?port ?user ?(password = "") ?database
 	  (* Silently ignore unknown or unexpected message types. *)
 	  loop None
     in
-    loop (Some msg) >>=
+    loop (Some msg) >>= fun () ->
 
-    fun () -> return conn
+    return conn
   in
   let detail = [
     "user"; user;
@@ -708,10 +718,10 @@ let close conn =
   let do_close () =
     (* Be nice and send the terminate message. *)
     let msg = new_message 'X' in
-    send_message conn msg >>=
-		fun () -> Lwt_chan.flush conn.chan >>=
+    send_message conn msg >>= fun () ->
+    flush conn.chan >>= fun () ->
     (* Closes the underlying socket too. *)
-    fun () -> return (Lwt_unix.close conn.fd)
+    close_in conn.ichan
   in
   profile_op conn.uuid "close" [] do_close
 
@@ -725,20 +735,23 @@ let private_data { private_data = private_data } =
 
 type pa_pg_data = (string, bool) Hashtbl.t
 
-(* XXX let ping conn =
-  let msg = new_message 'S' in
-  send_message conn msg;
+let ping conn =
+  let do_ping () =
+    let msg = new_message 'S' in
+    send_message conn msg >>= fun () ->
 
-  (* Wait for ReadyForQuery. *)
-  let rec loop () =
-    let msg = receive_message conn in
-    let msg = parse_backend_message msg in
-    match msg with
-    | ReadyForQuery _ -> () (* Finished! *)
-    | ErrorResponse err -> pg_error ~conn err (* Error *)
-    | _ -> loop ()
+    (* Wait for ReadyForQuery. *)
+    let rec loop () =
+      receive_message conn >>= fun msg ->
+      let msg = parse_backend_message msg in
+      match msg with
+      | ReadyForQuery _ -> return () (* Finished! *)
+      | ErrorResponse err -> pg_error ~conn err (* Error *)
+      | _ -> loop ()
+    in
+    loop ()
   in
-  profile_op conn.uuid "ping" [] loop *)
+  profile_op conn.uuid "ping" [] do_ping
 
 type oid = int32
 
@@ -748,11 +761,11 @@ type row = result list
 
 let flush_msg conn =
   let msg = new_message 'H' in
-  send_message conn msg >>=
+  send_message conn msg >>= fun () ->
   (* Might as well actually flush the channel too, otherwise what is the
    * point of executing this command?
    *)
-  fun () -> Lwt_chan.flush conn.chan;;
+  flush conn.chan
 
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
@@ -761,12 +774,11 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     add_string msg query;
     add_int16 msg (List.length types);
     List.iter (add_int32 msg) types;
-    send_message conn msg >>=
-		fun () -> flush_msg conn >>=
-		fun () ->
+    send_message conn msg >>= fun () ->
+    flush_msg conn >>= fun () ->
     let rec loop () =
-      receive_message conn >>=
-      fun rmsg -> let msg = parse_backend_message rmsg in
+      receive_message conn >>= fun msg ->
+      let msg = parse_backend_message msg in
       match msg with
       | ErrorResponse err -> pg_error err
       | ParseComplete -> return () (* Finished! *)
@@ -780,7 +792,7 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     loop ()
   in
   let details = [ "query"; query; "name"; name ] in
-  profile_op conn.uuid "prepare" details do_prepare;;
+  profile_op conn.uuid "prepare" details do_prepare
 
 let execute conn ?(name = "") ?(portal = "") ~params () =
   let do_execute () =
@@ -799,20 +811,17 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
 	    add_string_no_trailing_nil msg str
     ) params;
     add_int16 msg 0; (* Send back all results as text. *)
-    send_message conn msg >>=
-		fun () ->
+    send_message conn msg >>= fun () ->
 
     (* Execute *)
     let msg = new_message 'E' in
     add_string msg portal;
     add_int32 msg 0l; (* no limit on rows *)
-    send_message conn msg >>=
-		fun () ->
+    send_message conn msg >>= fun () ->
 
     (* Sync *)
     let msg = new_message 'S' in
-    send_message conn msg >>=
-		fun () ->
+    send_message conn msg >>= fun () ->
 
     (* Process the message(s) received from the database until we read
      * ReadyForQuery.  In the process we may get some rows back from
@@ -821,8 +830,8 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
     let rows = ref [] in
     let rec loop () =
       (* NB: receive_message flushes the output connection. *)
-      receive_message conn >>=
-			fun rmsg -> let msg = parse_backend_message rmsg in
+      receive_message conn >>= fun msg ->
+      let msg = parse_backend_message msg in
       match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
@@ -858,10 +867,10 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
 	    (Error ("PGOCaml: unknown response message: " ^
 		      string_of_msg_t msg))
     in
-    loop () >>=
+    loop () >>= fun () ->
 
     (* Return the result rows. *)
-    fun () -> return (List.rev !rows)
+    return (List.rev !rows)
   in
   (* We used to append the parameters here, but that leads to
    * problems with parsing, and may leak sensitive data.  In any
@@ -873,24 +882,26 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
 
 let begin_work conn =
   let query = "begin work" in
-  prepare conn ~query () >>=
-	fun () -> execute conn ~params:[] ()
+  prepare conn ~query () >>= fun () ->
+  execute conn ~params:[] () >>= fun _ ->
+  return ()
 
 let commit conn =
   let query = "commit" in
-  prepare conn ~query () >>=
-  fun () -> execute conn ~params:[] ()
+  prepare conn ~query () >>= fun () ->
+  execute conn ~params:[] () >>= fun _ ->
+  return ()
 
 let rollback conn =
   let query = "rollback" in
-  prepare conn ~query () >>=
-  fun () ->  execute conn ~params:[] ()
+  prepare conn ~query () >>= fun () ->
+  execute conn ~params:[] () >>= fun _ ->
+  return ()
 
 let serial conn name =
   let query = "select currval ($1)" in
-  prepare conn ~query () >>=
-  fun () -> execute conn ~params:[Some name] () >>=
-	fun rows ->
+  prepare conn ~query () >>= fun () ->
+  execute conn ~params:[Some name] () >>= fun rows ->
   let row = List.hd rows in
   let result = List.hd row in
   (* NB. According to the manual, the return type of currval is
@@ -899,16 +910,7 @@ let serial conn name =
   return (Int64.of_string (Option.get result))
 
 let serial4 conn name =
-  let query = "select currval ($1)" in
-  prepare conn ~query () >>=
-  fun () -> execute conn ~params:[Some name] () >>=
-	fun rows ->
-  let row = List.hd rows in
-  let result = List.hd row in
-  (* NB. According to the manual, the return type of currval is
-   * always a bigint, whether or not the column is serial or bigserial.
-   *)
-  return (Int32.of_string (Option.get result))
+  serial conn name >>= fun s -> return (Int64.to_int32 s)
 
 let serial8 = serial
 
@@ -916,12 +918,11 @@ let close_statement conn ?(name = "") () =
   let msg = new_message 'C' in
   add_char msg 'S';
   add_string msg name;
-  send_message conn msg >>=
-  fun () -> flush_msg conn >>=
-	fun () ->
+  send_message conn msg >>= fun () ->
+  flush_msg conn >>= fun () ->
   let rec loop () =
-    receive_message conn >>=
-    fun rmsg -> let msg = parse_backend_message rmsg in
+    receive_message conn >>= fun msg ->
+    let msg = parse_backend_message msg in
     match msg with
     | ErrorResponse err -> pg_error err
     | CloseComplete -> return () (* Finished! *)
@@ -938,12 +939,11 @@ let close_portal conn ?(portal = "") () =
   let msg = new_message 'C' in
   add_char msg 'P';
   add_string msg portal;
-  send_message conn msg >>=
-	fun () -> flush_msg conn >>=
-	fun () ->
+  send_message conn msg >>= fun () ->
+  flush_msg conn >>= fun () ->
   let rec loop () =
-    receive_message conn >>=
-    fun rmsg -> let msg = parse_backend_message rmsg in
+    receive_message conn >>= fun msg ->
+    let msg = parse_backend_message msg in
     match msg with
     | ErrorResponse err -> pg_error err
     | CloseComplete -> return ()
@@ -971,31 +971,30 @@ and param_description = {
   param_type : oid;
 }
 
-(* let describe_statement conn ?(name = "") () =
+let describe_statement conn ?(name = "") () =
   let msg = new_message 'D' in
   add_char msg 'S';
   add_string msg name;
-  send_message conn msg;
-  flush_msg conn;
-  let msg = receive_message conn in
+  send_message conn msg >>= fun () ->
+  flush_msg conn >>= fun () ->
+  receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  let params =
-    match msg with
+  ( match msg with
     | ErrorResponse err -> pg_error err
     | ParameterDescription params ->
 	let params = List.map (
 	  fun oid ->
 	    { param_type = oid }
 	) params in
-	params
+	return params
     | _ ->
-	raise (Error ("PGOCaml: unknown response from describe: " ^
-			string_of_msg_t msg)) in
-  let msg = receive_message conn in
+	fail (Error ("PGOCaml: unknown response from describe: " ^
+			string_of_msg_t msg))) >>= fun params ->
+  receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   match msg with
   | ErrorResponse err -> pg_error err
-  | NoData -> params, None
+  | NoData -> return (params, None)
   | RowDescription fields ->
       let fields = List.map (
 	fun (name, table, column, oid, length, modifier, _) ->
@@ -1008,22 +1007,22 @@ and param_description = {
 	    modifier = modifier;
 	  }
       ) fields in
-      params, Some fields
+      return (params, Some fields)
   | _ ->
-      raise (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg)) *)
+      fail (Error ("PGOCaml: unknown response from describe: " ^
+		      string_of_msg_t msg))
 
-(* let describe_portal conn ?(portal = "") () =
+let describe_portal conn ?(portal = "") () =
   let msg = new_message 'D' in
   add_char msg 'P';
   add_string msg portal;
-  send_message conn msg;
-  flush_msg conn;
-  let msg = receive_message conn in
+  send_message conn msg >>= fun () ->
+  flush_msg conn >>= fun () ->
+  receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   match msg with
   | ErrorResponse err -> pg_error err
-  | NoData -> None
+  | NoData -> return None
   | RowDescription fields ->
       let fields = List.map (
 	fun (name, table, column, oid, length, modifier, _) ->
@@ -1036,10 +1035,10 @@ and param_description = {
 	    modifier = modifier;
 	  }
       ) fields in
-      Some fields
+      return (Some fields)
   | _ ->
-      raise (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg)) *)
+      fail (Error ("PGOCaml: unknown response from describe: " ^
+		      string_of_msg_t msg))
 
 (*----- Type conversion. -----*)
 
@@ -1276,3 +1275,7 @@ let bytea_of_string str =
     )
   done;
   Buffer.contents buf
+
+let bind = (>>=)
+let return = Thread.return
+end

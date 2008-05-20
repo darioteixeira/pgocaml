@@ -268,15 +268,17 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	      } ] in
       (* Have we prepared this statement already?  If not, do so. *)
       let is_prepared = Hashtbl.mem hash name in
-      do {
-	if not is_prepared then do {
-	  PGOCaml.prepare dbh ~name ~query ();
-	  Hashtbl.add hash name True
-	}
-        else ();
-	(* Execute the statement, returning the rows. *)
-	PGOCaml.execute dbh ~name ~params ()
-      }
+      PGOCaml.bind
+        (if not is_prepared then
+           PGOCaml.bind (PGOCaml.prepare dbh ~name ~query ()) (fun () ->
+           do {
+             Hashtbl.add hash name True;
+             PGOCaml.return ()
+           })
+         else
+           PGOCaml.return ()) (fun () ->
+         (* Execute the statement, returning the rows. *)
+      PGOCaml.execute dbh ~name ~params ())
     >> in
 
   (* If we're expecting any result rows, then generate a function to
@@ -338,36 +340,34 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    <:expr< ( $conversion$, $Ast.exCom_of_list conversions$ ) >> in
 
       <:expr<
-	let rows = $expr$ in
-	let original_query = $str:query$ in
-	List.map (
-	  fun row ->
-	    match row with
-	      [ $list$ -> $convert$
-	      | _ ->
-		  (* This should never happen, even if the schema changes.
-		   * Well, maybe if the user does 'SELECT *'.
-		   *)
-		  let msg = "pa_pgsql: internal error: " ^
-		    "Incorrect number of columns returned from query: " ^
-		    original_query ^
-		    ".  Columns are: " ^
-		    String.concat "; " (
-		      List.map (
-			fun [ Some str -> Printf.sprintf "%S" str
-			| None -> "NULL" ]
-		      ) row
-		    ) in
-		  raise (PGOCaml.Error msg) ]
-	) rows
+	PGOCaml.bind $expr$ (fun rows ->
+        PGOCaml.return
+          (let original_query = $str:query$ in
+           List.map (
+             fun row ->
+               match row with
+                 [ $list$ -> $convert$
+                 | _ ->
+                     (* This should never happen, even if the schema changes.
+                      * Well, maybe if the user does 'SELECT *'.
+                      *)
+                     let msg = "pa_pgsql: internal error: " ^
+                       "Incorrect number of columns returned from query: " ^
+                       original_query ^
+                       ".  Columns are: " ^
+                       String.concat "; " (
+                         List.map (
+                           fun [ Some str -> Printf.sprintf "%S" str
+                           | None -> "NULL" ]
+                         ) row
+                       ) in
+                     raise (PGOCaml.Error msg) ]
+           ) rows))
       >>
 
   | None ->
       <:expr<
-        do {
-	  ignore $expr$;
-          ()
-	}
+	PGOCaml.bind $expr$ (fun rows -> PGOCaml.return ())
       >>
 
 open Syntax

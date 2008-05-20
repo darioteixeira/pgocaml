@@ -1,28 +1,30 @@
 # $Id: Makefile,v 1.14 2007-09-03 17:18:38 rich Exp $
+#
+# PG'OCaml - type safe interface to PostgreSQL.
+# Copyright (C) 2005-2008 Richard Jones and other authors.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this library; see the file COPYING.  If not, write to
+# the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+# Boston, MA 02111-1307, USA.
 
 include Makefile.config
 
 SED	:= sed
 FGREP	:= fgrep
 
-ifdef LWT
-LWT_PA_PGSQL := lwt_pa_pgsql.cmo
-LWT_PGOCAML_SRC	:= lwt_extutil.ml lwt_PGOCaml.ml
-LWT_PGOCAML	:= lwt_extutil.cmo lwt_PGOCaml.cmo
-LWT_CMI		:= lwt_extutil.cmi lwt_PGOCaml.cmi
-LWT_PACKAGE	:= ,lwt
-LWT_P4 := $(shell ocamlc -where)/threads/threads.cma \
-          -I +ssl $(shell ocamlfind query ssl)/ssl.cma \
-          -I +lwt $(shell ocamlfind query lwt)/lwt.cma
-LWT_PREFIX := lwt_
-else
-PA_FILE		:= pa_pgsql.ml4
-endif
-
-CAMLP4O := camlp4o.byte
-
 OCAMLCFLAGS	:= -g
-OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv${LWT_PACKAGE}
+OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv
 OCAMLCLIBS	:= -linkpkg
 
 OCAMLOPTFLAGS	:=
@@ -38,7 +40,6 @@ FOR_P4	:= \
 	-I +extlib $(shell ocamlfind query extlib)/extLib.cma \
 	-I +calendar $(shell ocamlfind query calendar)/calendarLib.cmo \
 	-I +csv $(shell ocamlfind query csv)/csv.cma \
-	$(LWT_P4) \
 	./pgocaml.cma
 
 # This is split into two because back-tick notation
@@ -50,10 +51,10 @@ ifdef WINDOWS
   EXECUTABLE_SUFFIX := .exe
 endif
 
-OBJS	:= pGOCaml_config.cmo pGOCaml.cmo $(LWT_PGOCAML)
+OBJS	:= pGOCaml_config.cmo pGOCaml_generic.cmo pGOCaml.cmo
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
-all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo $(LWT_PA_PGSQL) $(LWT_PGOCAML) test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) $(LWT_PREFIX)test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
+all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
 
 test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
@@ -63,36 +64,20 @@ test_pgocaml$(EXECUTABLE_SUFFIX): test_pgocaml.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
 	  pgocaml.cma -o $@ $<
 
-lwt_test_pgocaml$(EXECUTABLE_SUFFIX): lwt_test_pgocaml.cmo pgocaml.cma
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  pgocaml.cma -o $@ $<
-
 pgocaml_prof$(EXECUTABLE_SUFFIX): pgocaml_prof.cmx
 	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTPACKAGES) $(OCAMLOPTLIBS) \
 	  -o $@ $<
 
 test_pgocaml.cmo: test_pgocaml.ml pgocaml.cma pa_pgsql.cmo
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  -pp "$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo" -c $<
-
-lwt_test_pgocaml.cmo: lwt_test_pgocaml.ml pgocaml.cma lwt_pa_pgsql.cmo
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  -pp "$(CAMLP4O) $(FOR_P4) ./lwt_pa_pgsql.cmo" -c $<
+	  -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" -c $<
 
 print_test: force
-	$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo pr_o.cmo test_pgocaml.ml
-
-print_lwt_test: force
-	$(CAMLP4O) $(FOR_P4) ./lwt_pa_pgsql.cmo pr_o.cmo lwt_test_pgocaml.ml
+	camlp4o $(FOR_P4) ./pa_pgsql.cmo pr_o.cmo test_pgocaml.ml
 
 pa_pgsql.cmo: pa_pgsql.ml4
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
-	  -pp "$(CAMLP4O) pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
-	  -I +camlp4 -c -impl $<
-
-lwt_pa_pgsql.cmo: lwt_pa_pgsql.ml4
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
-	  -pp "$(CAMLP4O) pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
+	  -pp "camlp4o pa_extend.cmo q_MLast.cmo $(P4_PARAMS) -impl" \
 	  -I +camlp4 -c -impl $<
 
 pgocaml.cma: $(OBJS)
@@ -115,7 +100,7 @@ pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 
 # Findlib META file.
 
-META:	$(LWT_PREFIX)META.in Makefile.config
+META:	META.in Makefile.config
 	$(SED)  -e 's/@PACKAGE@/$(PACKAGE)/' \
 		-e 's/@VERSION@/$(VERSION)/' \
 		< $< > $@
@@ -124,7 +109,7 @@ META:	$(LWT_PREFIX)META.in Makefile.config
 
 clean:
 	rm -f *.cmi *.cmo *.cmx *.cma *.cmxa *.o *.a *.so *~ core META \
-	test_pgocaml_lowlevel $(LWT_PREFIX)test_pgocaml pgocaml_prof
+	test_pgocaml_lowlevel test_pgocaml pgocaml_prof
 
 # Dependencies.
 
@@ -132,8 +117,8 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml.mli pGOCaml.ml $(LWT_PGOCAML_SRC) test_pgocaml_lowlevel.ml > $@
-	-ocamldep -pp "$(CAMLP4O) $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
+	ocamldep pGOCaml*.ml{,i} test_pgocaml_lowlevel.ml > $@
+	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
 
 ifeq ($(wildcard .depend),.depend)
 include .depend
@@ -142,11 +127,11 @@ endif
 # Install.
 
 findlib_install:
-	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] $(LWT_CMI) pa_pgsql.cmo $(LWT_PA_PGSQL)
+	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
 
 reinstall:
 	ocamlfind remove pgocaml
-	ocamlfind install pgocaml META pgocaml.{,cm{,x}}a pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
 
 install:
 	rm -rf $(DESTDIR)$(OCAMLLIBDIR)/pgocaml
@@ -166,12 +151,7 @@ dist:
 	ls -l $(PACKAGE)-$(VERSION).tar.gz
 
 check-manifest:
-	@for d in `find -type d -name CVS | grep -v '^\./debian/'`; \
-	do \
-	b=`dirname $$d`/; \
-	awk -F/ '$$1 != "D" {print $$2}' $$d/Entries | \
-	sed -e "s|^|$$b|" -e "s|^\./||"; \
-	done | sort > .check-manifest; \
+	svn list | sort > .check-manifest; \
 	sort MANIFEST > .orig-manifest; \
 	diff -u .orig-manifest .check-manifest; rv=$$?; \
 	rm -f .orig-manifest .check-manifest; \
@@ -203,7 +183,7 @@ dpkg:
 doc:
 	rm -rf html
 	mkdir html
-	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml.ml{i,}
+	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml_generic.mli pGOCaml_generic.ml pGOCaml.mli pGOCaml.ml
 
 force:
 

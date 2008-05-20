@@ -3,6 +3,27 @@
  *)
 
 
+open CalendarLib
+
+module Make (Thread : sig
+  type 'a t
+  val return : 'a -> 'a t
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+  val fail : exn -> 'a t
+
+  type in_channel
+  type out_channel
+  val open_connection : Unix.sockaddr -> (in_channel * out_channel) t
+  val output_char : out_channel -> char -> unit t
+  val output_binary_int : out_channel -> int -> unit t
+  val output_string : out_channel -> string -> unit t
+  val flush : out_channel -> unit t
+  val input_char : in_channel -> char t
+  val input_binary_int : in_channel -> int t
+  val really_input : in_channel -> string -> int -> int -> unit t
+  val close_in : in_channel -> unit t
+end) : sig
+
 type 'a t				(** Database handle. *)
 
 exception Error of string
@@ -17,48 +38,48 @@ exception PostgreSQL_Error of string * (char * string) list
 
 (** {6 Connection management} *)
 
-val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> 'a t
+val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> 'a t Thread.t
 (** Connect to the database.  The normal [$PGDATABASE], etc. environment
   * variables are available.
   *)
 
-val close : 'a t -> unit
+val close : 'a t -> unit Thread.t
 (** Close the database handle.  You must call this after you have
   * finished with the handle, or else you will get leaked file
   * descriptors.
   *)
 
-val ping : 'a t -> unit
+val ping : 'a t -> unit Thread.t
 (** Ping the database.  If the database is not available, some sort of
   * exception will be thrown.
   *)
 
 (** {6 Transactions} *)
 
-val begin_work : 'a t -> unit
+val begin_work : 'a t -> unit Thread.t
 (** Start a transaction. *)
 
-val commit : 'a t -> unit
+val commit : 'a t -> unit Thread.t
 (** Perform a COMMIT operation on the database. *)
 
-val rollback : 'a t -> unit
+val rollback : 'a t -> unit Thread.t
 (** Perform a ROLLBACK operation on the database. *)
 
 (** {6 Serial column} *)
 
-val serial : 'a t -> string -> int64
+val serial : 'a t -> string -> int64 Thread.t
 (** This is a shorthand for [SELECT CURRVAL(serial)].  For a table
   * called [table] with serial column [id] you would typically
   * call this as [serial dbh "table_id_seq"] after the previous INSERT
   * operation to get the serial number of the inserted row.
   *)
 
-val serial4 : 'a t -> string -> int32
+val serial4 : 'a t -> string -> int32 Thread.t
 (** As {!PGOCaml.serial} but assumes that the column is a SERIAL or
   * SERIAL4 type.
   *)
 
-val serial8 : 'a t -> string -> int64
+val serial8 : 'a t -> string -> int64 Thread.t
 (** Same as {!PGOCaml.serial}.
   *)
 
@@ -110,7 +131,7 @@ type param = string option (** None is NULL. *)
 type result = string option (** None is NULL. *)
 type row = result list (** One row is a list of fields. *)
 
-val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit -> unit
+val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit -> unit Thread.t
 (** [prepare conn ~query ?name ?types ()] prepares the statement [query]
   * and optionally names it [name] and sets the parameter types to [types].
   * If no name is given, then the "unnamed" statement is overwritten.  If
@@ -118,7 +139,7 @@ val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit ->
   * Synchronously checks for errors.
   *)
 
-val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list
+val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list Thread.t
 (** [execute conn ?name ~params ()] executes the named or unnamed
   * statement [name], with the given parameters [params],
   * returning the result rows (if any).
@@ -135,12 +156,12 @@ val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> uni
   * to find out the result types.
   *)
 
-val close_statement : 'a t -> ?name:string -> unit -> unit
+val close_statement : 'a t -> ?name:string -> unit -> unit Thread.t
 (** [close_statement conn ?name ()] closes a prepared statement and frees
   * up any resources.
   *)
 
-val close_portal : 'a t -> ?portal:string -> unit -> unit
+val close_portal : 'a t -> ?portal:string -> unit -> unit Thread.t
 (** [close_portal conn ?portal ()] closes a portal and frees up any resources.
   *)
 
@@ -159,12 +180,12 @@ and param_description = {
   param_type : oid;			(** The type of the parameter. *)
 }
 
-val describe_statement : 'a t -> ?name:string -> unit -> params_description * row_description option
+val describe_statement : 'a t -> ?name:string -> unit -> (params_description * row_description option) Thread.t
 (** [describe_statement conn ?name ()] describes the named or unnamed
   * statement's parameter types and result types.
   *)
 
-val describe_portal : 'a t -> ?portal:string -> unit -> row_description option
+val describe_portal : 'a t -> ?portal:string -> unit -> row_description option Thread.t
 (** [describe_portal conn ?portal ()] describes the named or unnamed
   * portal's result types.
   *)
@@ -220,5 +241,6 @@ val unit_of_string : string -> unit
   * values in and out of the database.
   *)
 
-val bind : 'a -> ('a -> 'b) -> 'b
-val return : 'a -> 'a
+val bind : 'a Thread.t -> ('a -> 'b Thread.t) -> 'b Thread.t
+val return : 'a -> 'a Thread.t
+end
