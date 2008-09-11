@@ -550,7 +550,7 @@ let profile_op uuid op detail f =
 
 (*----- Connection. -----*)
 
-let connect ?host ?port ?user ?(password = "") ?database
+let connect ?host ?port ?user ?password ?database
     ?(unix_domain_socket_dir = PGOCaml_config.default_unix_domain_socket_dir)
     () =
   (* Get the username. *)
@@ -565,6 +565,14 @@ let connect ?host ?port ?user ?(password = "") ?database
 	    pw.Unix.pw_name
 	  with
 	    Not_found -> "postgres" in
+
+  (* Get the password. *)
+  let password =
+    match password with
+    | Some password -> password
+    | None ->
+       try Sys.getenv "PGPASSWORD"
+       with Not_found -> "" in
 
   (* Get the database name. *)
   let database =
