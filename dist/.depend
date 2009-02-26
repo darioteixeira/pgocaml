@@ -1,2 +1,8 @@
-test_pgocaml_lowlevel.cmo: pGOCaml.cmi 
-test_pgocaml_lowlevel.cmx: pGOCaml.cmx 
+pGOCaml.cmo: pGOCaml_generic.cmi pGOCaml.cmi 
+pGOCaml.cmx: pGOCaml_generic.cmx pGOCaml.cmi 
+pGOCaml_config.cmo: 
+pGOCaml_config.cmx: 
+pGOCaml_generic.cmo: pGOCaml_config.cmo pGOCaml_generic.cmi 
+pGOCaml_generic.cmx: pGOCaml_config.cmx pGOCaml_generic.cmi 
+pGOCaml.cmi: 
+pGOCaml_generic.cmi: 

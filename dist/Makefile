@@ -117,8 +117,8 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml*.ml pGOCaml*.mli test_pgocaml_lowlevel.ml > $@
-	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
+	ocamldep pGOCaml*.ml pGOCaml*.mli > $@
+	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" >> $@
 
 ifeq ($(wildcard .depend),.depend)
 include .depend
