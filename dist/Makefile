@@ -54,7 +54,7 @@ endif
 OBJS	:= pGOCaml_config.cmo pGOCaml_generic.cmo pGOCaml.cmo
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
-all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
+all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo pgocaml_prof$(EXECUTABLE_SUFFIX) META
 
 test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
@@ -117,7 +117,7 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml*.ml{,i} test_pgocaml_lowlevel.ml > $@
+	ocamldep pGOCaml*.ml pGOCaml*.mli test_pgocaml_lowlevel.ml > $@
 	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
 
 ifeq ($(wildcard .depend),.depend)
