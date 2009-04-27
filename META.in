@@ -5,7 +5,7 @@ requires="unix,extlib,csv,pcre,calendar"
 archive(byte)="pgocaml.cma"
 archive(native)="pgocaml.cmxa"
 
-package "statements" (
+package "syntax" (
   requires = "pgocaml,camlp4"
   version = "@VERSION@"
   description = "Syntax extension: PostgreSQL statements checked at compile-time"

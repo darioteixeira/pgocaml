@@ -1,5 +1,3 @@
-# $Id: Makefile,v 1.14 2007-09-03 17:18:38 rich Exp $
-#
 # PG'OCaml - type safe interface to PostgreSQL.
 # Copyright (C) 2005-2008 Richard Jones and other authors.
 #
