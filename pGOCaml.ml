@@ -1,5 +1,4 @@
 (* PG'OCaml is a set of OCaml bindings for the PostgreSQL database.
- * $Id: pGOCaml.ml,v 1.24 2007-10-14 14:52:27 rich Exp $
  *
  * PG'OCaml - type safe interface to PostgreSQL.
  * Copyright (C) 2005-2008 Richard Jones and other authors.
@@ -22,6 +21,7 @@
 
 open Printf
 open ExtString
+open CalendarLib
 
 type 'a t = {
   ichan : in_channel;			(* In_channel wrapping socket. *)
