@@ -1,5 +1,3 @@
-# $Id: Makefile,v 1.14 2007-09-03 17:18:38 rich Exp $
-#
 # PG'OCaml - type safe interface to PostgreSQL.
 # Copyright (C) 2005-2008 Richard Jones and other authors.
 #
@@ -33,17 +31,22 @@ OCAMLOPTLIBS	:= -linkpkg
 
 OCAMLDOCFLAGS := -html -stars -sort $(OCAMLCPACKAGES)
 
+GETLIB=-I +$(1) $(shell ocamlfind query $(1) -predicates byte -format "%d/%a")
+
 FOR_P4	:= \
 	$(shell ocamlc -where)/unix.cma \
 	$(shell ocamlc -where)/str.cma \
-	-I +pcre $(shell ocamlfind query pcre)/pcre.cma \
-	-I +extlib $(shell ocamlfind query extlib)/extLib.cma \
-	-I +calendar $(shell ocamlfind query calendar)/calendar.cma \
-	-I +csv $(shell ocamlfind query csv)/csv.cma \
+	$(call GETLIB,pcre) \
+	$(call GETLIB,extlib) \
+	$(call GETLIB,calendar) \
+	$(call GETLIB,csv) \
 	./pgocaml.cma
 
+#
 # This is split into two because back-tick notation
 # doesn't necessarily work under Windows
+#
+
 OCAMLVERSION := $(shell ocamlc -v | $(FGREP) "version" | $(SED) -e "s/.*3\.\(..\)\..*/\1/")
 P4_PARAMS := $(shell [ $(OCAMLVERSION) -ge 9 ] && echo -loc loc)
 
@@ -51,29 +54,39 @@ ifdef WINDOWS
   EXECUTABLE_SUFFIX := .exe
 endif
 
+#
+# Top-rules.
+#
+
 OBJS	:= pGOCaml_config.cmo pGOCaml.cmo
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
-all:	pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) test_pgocaml$(EXECUTABLE_SUFFIX) pgocaml_prof$(EXECUTABLE_SUFFIX) META
+all: META pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo pgocaml_prof$(EXECUTABLE_SUFFIX)
+
+test: test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX) test_pgocaml$(EXECUTABLE_SUFFIX)
+
+#
+# Rules for testing programs.
+#
 
 test_pgocaml_lowlevel$(EXECUTABLE_SUFFIX): test_pgocaml_lowlevel.cmo pgocaml.cma
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  pgocaml.cma -o $@ $<
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) pgocaml.cma -o $@ $<
 
 test_pgocaml$(EXECUTABLE_SUFFIX): test_pgocaml.cmo pgocaml.cma
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  pgocaml.cma -o $@ $<
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) pgocaml.cma -o $@ $<
 
 pgocaml_prof$(EXECUTABLE_SUFFIX): pgocaml_prof.cmx
-	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTPACKAGES) $(OCAMLOPTLIBS) \
-	  -o $@ $<
+	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTPACKAGES) $(OCAMLOPTLIBS) -o $@ $<
 
 test_pgocaml.cmo: test_pgocaml.ml pgocaml.cma pa_pgsql.cmo
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) \
-	  -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" -c $<
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) $(OCAMLCLIBS) -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" -c $<
 
 print_test: force
 	camlp4o $(FOR_P4) ./pa_pgsql.cmo pr_o.cmo test_pgocaml.ml
+
+#
+# Rules for core library.
+#
 
 pa_pgsql.cmo: pa_pgsql.ml4
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCPACKAGES) \
@@ -89,7 +102,9 @@ pgocaml.cmxa: $(XOBJS)
 pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 	< $< sed -e "s|@DEFAULT_UNIX_DOMAIN_SOCKET_DIR@|$(DEFAULT_UNIX_DOMAIN_SOCKET_DIR)|" > $@
 
+#
 # Common rules for building OCaml objects.
+#
 
 .mli.cmi:
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCINCS) $(OCAMLCPACKAGES) -c $<
@@ -98,20 +113,26 @@ pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 .ml.cmx:
 	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTINCS) $(OCAMLOPTPACKAGES) -c $<
 
+#
 # Findlib META file.
+#
 
 META:	META.in Makefile.config
 	$(SED)  -e 's/@PACKAGE@/$(PACKAGE)/' \
 		-e 's/@VERSION@/$(VERSION)/' \
 		< $< > $@
 
+#
 # Clean.
+#
 
 clean:
 	rm -f *.cmi *.cmo *.cmx *.cma *.cmxa *.o *.a *.so *~ core META \
 	test_pgocaml_lowlevel test_pgocaml pgocaml_prof
 
+#
 # Dependencies.
+#
 
 depend: .depend
 
@@ -124,7 +145,9 @@ ifeq ($(wildcard .depend),.depend)
 include .depend
 endif
 
+#
 # Install.
+#
 
 findlib_install:
 	ocamlfind install pgocaml META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] pa_pgsql.cmo
@@ -139,7 +162,9 @@ install:
 	install -c -m 0644 *.cmi *.mli *.cmo *.cma *.cmxa *.a META \
 	  $(DESTDIR)$(OCAMLLIBDIR)/pgocaml
 
+#
 # Distribution.
+#
 
 dist:
 	$(MAKE) check-manifest
@@ -157,7 +182,9 @@ check-manifest:
 	rm -f .orig-manifest .check-manifest; \
 	exit $$rv
 
+#
 # Debian packages.
+#
 
 dpkg:
 	@if [ 0 != `cvs -q update | wc -l` ]; then \
@@ -178,15 +205,22 @@ dpkg:
 	rm -rf /tmp/dbuild/$(PACKAGE)-$(VERSION)
 	ls -l /tmp/dbuild
 
+#
 # Developer documentation (in html/ subdirectory).
+#
 
 doc:
 	rm -rf html
 	mkdir html
 	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml.mli pGOCaml.ml
 
+#
+# Miscelaneous.
+#
+
 force:
 
 .PHONY:	depend dist check-manifest dpkg doc print_test
 
 .SUFFIXES:	.cmo .cmi .cmx .ml .mli
+
