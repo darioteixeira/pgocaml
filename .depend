@@ -3,3 +3,5 @@ pGOCaml.cmo: pGOCaml_config.cmo pGOCaml.cmi
 pGOCaml.cmx: pGOCaml_config.cmx pGOCaml.cmi 
 test_pgocaml_lowlevel.cmo: pGOCaml.cmi 
 test_pgocaml_lowlevel.cmx: pGOCaml.cmx 
+test_pgocaml.cmo: pGOCaml.cmi 
+test_pgocaml.cmx: pGOCaml.cmx 
