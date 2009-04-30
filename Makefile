@@ -34,8 +34,8 @@ OCAMLDOCFLAGS := -html -stars -sort $(OCAMLCPACKAGES)
 GETLIB=-I +$(1) $(shell ocamlfind query $(1) -predicates byte -format "%d/%a")
 
 FOR_P4	:= \
-	$(shell ocamlc -where)/unix.cma \
-	$(shell ocamlc -where)/str.cma \
+	$(call GETLIB,unix) \
+	$(call GETLIB,str) \
 	$(call GETLIB,pcre) \
 	$(call GETLIB,extlib) \
 	$(call GETLIB,calendar) \
