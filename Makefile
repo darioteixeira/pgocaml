@@ -127,7 +127,7 @@ META:	META.in Makefile.config
 #
 
 clean:
-	rm -f *.cmi *.cmo *.cmx *.cma *.cmxa *.o *.a *.so *~ core META \
+	rm -f *.cmi *.cmo *.cmx *.cma *.cmxa *.o *.a *.so *~ core .depend META \
 	test_pgocaml_lowlevel test_pgocaml pgocaml_prof
 
 #
