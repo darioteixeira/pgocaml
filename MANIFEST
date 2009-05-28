@@ -1,3 +1,4 @@
+.cvsignore
 .depend
 BUGS.txt
 CONTRIBUTORS.txt

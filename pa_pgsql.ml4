@@ -1,23 +1,5 @@
 (* $Id: pa_pgsql.ml4,v 1.13 2007-09-03 17:18:38 rich Exp $
  * -*- tuareg-mode -*-
- *
- * PG'OCaml - type safe interface to PostgreSQL.
- * Copyright (C) 2005-2008 Richard Jones and other authors.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this library; see the file COPYING.  If not, write to
- * the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
  *)
 
 open Camlp4.PreCast
@@ -286,15 +268,17 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	      } ] in
       (* Have we prepared this statement already?  If not, do so. *)
       let is_prepared = Hashtbl.mem hash name in
-      do {
-	if not is_prepared then do {
-	  PGOCaml.prepare dbh ~name ~query ();
-	  Hashtbl.add hash name True
-	}
-        else ();
-	(* Execute the statement, returning the rows. *)
-	PGOCaml.execute dbh ~name ~params ()
-      }
+      PGOCaml.bind
+        (if not is_prepared then
+           PGOCaml.bind (PGOCaml.prepare dbh ~name ~query ()) (fun () ->
+           do {
+             Hashtbl.add hash name True;
+             PGOCaml.return ()
+           })
+         else
+           PGOCaml.return ()) (fun () ->
+         (* Execute the statement, returning the rows. *)
+      PGOCaml.execute dbh ~name ~params ())
     >> in
 
   (* If we're expecting any result rows, then generate a function to
@@ -356,36 +340,34 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    <:expr< ( $conversion$, $Ast.exCom_of_list conversions$ ) >> in
 
       <:expr<
-	let rows = $expr$ in
-	let original_query = $str:query$ in
-	List.map (
-	  fun row ->
-	    match row with
-	      [ $list$ -> $convert$
-	      | _ ->
-		  (* This should never happen, even if the schema changes.
-		   * Well, maybe if the user does 'SELECT *'.
-		   *)
-		  let msg = "pa_pgsql: internal error: " ^
-		    "Incorrect number of columns returned from query: " ^
-		    original_query ^
-		    ".  Columns are: " ^
-		    String.concat "; " (
-		      List.map (
-			fun [ Some str -> Printf.sprintf "%S" str
-			| None -> "NULL" ]
-		      ) row
-		    ) in
-		  raise (PGOCaml.Error msg) ]
-	) rows
+	PGOCaml.bind $expr$ (fun rows ->
+        PGOCaml.return
+          (let original_query = $str:query$ in
+           List.map (
+             fun row ->
+               match row with
+                 [ $list$ -> $convert$
+                 | _ ->
+                     (* This should never happen, even if the schema changes.
+                      * Well, maybe if the user does 'SELECT *'.
+                      *)
+                     let msg = "pa_pgsql: internal error: " ^
+                       "Incorrect number of columns returned from query: " ^
+                       original_query ^
+                       ".  Columns are: " ^
+                       String.concat "; " (
+                         List.map (
+                           fun [ Some str -> Printf.sprintf "%S" str
+                           | None -> "NULL" ]
+                         ) row
+                       ) in
+                     raise (PGOCaml.Error msg) ]
+           ) rows))
       >>
 
   | None ->
       <:expr<
-        do {
-	  ignore $expr$;
-          ()
-	}
+	PGOCaml.bind $expr$ (fun rows -> PGOCaml.return ())
       >>
 
 open Syntax

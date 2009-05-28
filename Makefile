@@ -33,7 +33,7 @@ OCAMLDOCFLAGS := -html -stars -sort $(OCAMLCPACKAGES)
 
 GETLIB=-I +$(1) $(shell ocamlfind query $(1) -predicates byte -format "%d/%a")
 
-FOR_P4	:= \
+FOR_P4  := \
 	$(call GETLIB,unix) \
 	$(call GETLIB,str) \
 	$(call GETLIB,pcre) \
@@ -58,7 +58,7 @@ endif
 # Top-rules.
 #
 
-OBJS	:= pGOCaml_config.cmo pGOCaml.cmo
+OBJS	:= pGOCaml_config.cmo pGOCaml_generic.cmo pGOCaml.cmo
 XOBJS	:= $(OBJS:.cmo=.cmx)
 
 all: META pGOCaml_config.ml pgocaml.cma pgocaml.cmxa pa_pgsql.cmo pgocaml_prof$(EXECUTABLE_SUFFIX)
@@ -138,8 +138,8 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml.mli pGOCaml.ml test_pgocaml_lowlevel.ml > $@
-	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" test_pgocaml.ml >> $@
+	ocamldep pGOCaml*.ml pGOCaml*.mli > $@
+	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" >> $@
 
 ifeq ($(wildcard .depend),.depend)
 include .depend
@@ -150,11 +150,11 @@ endif
 #
 
 findlib_install:
-	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
 
 reinstall:
 	ocamlfind remove $(PACKAGE)
-	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
 
 install:
 	rm -rf $(DESTDIR)$(OCAMLLIBDIR)/$(PACKAGE)
@@ -212,7 +212,7 @@ dpkg:
 doc:
 	rm -rf html
 	mkdir html
-	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml.mli pGOCaml.ml
+	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml_generic.mli pGOCaml_generic.ml pGOCaml.mli pGOCaml.ml
 
 #
 # Miscelaneous.
@@ -223,4 +223,3 @@ force:
 .PHONY:	depend dist check-manifest dpkg doc print_test
 
 .SUFFIXES:	.cmo .cmi .cmx .ml .mli
-
