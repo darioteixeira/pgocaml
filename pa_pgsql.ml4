@@ -278,7 +278,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
          else
            PGOCaml.return ()) (fun () ->
          (* Execute the statement, returning the rows. *)
-      PGOCaml.execute dbh ~name ~params ())
+      PGOCaml.execute_rev dbh ~name ~params ())
     >> in
 
   (* If we're expecting any result rows, then generate a function to
@@ -343,7 +343,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	PGOCaml.bind $expr$ (fun rows ->
         PGOCaml.return
           (let original_query = $str:query$ in
-           List.map (
+           List.rev_map (
              fun row ->
                match row with
                  [ $list$ -> $convert$

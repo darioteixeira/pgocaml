@@ -145,6 +145,7 @@ val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit ->
   * Synchronously checks for errors.
   *)
 
+val execute_rev : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list monad
 val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list monad
 (** [execute conn ?name ~params ()] executes the named or unnamed
   * statement [name], with the given parameters [params],
@@ -1032,8 +1033,7 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
   let details = [ "query"; query; "name"; name ] in
   profile_op conn.uuid "prepare" details do_prepare
 
-let execute conn ?(name = "") ?(portal = "") ~params () =
-  let do_execute () =
+let do_execute conn name portal params rev () =
     (* Bind *)
     let msg = new_message 'B' in
     add_string msg portal;
@@ -1106,15 +1106,16 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
 		      string_of_msg_t msg))
     in
     loop () >>= fun () ->
-
     (* Return the result rows. *)
-    return (List.rev !rows)
-  in
-  (* We used to append the parameters here, but that leads to
-   * problems with parsing, and may leak sensitive data.  In any
-   * case the profiling program doesn't care about the actual
-   * parameters.
-   *)
+    return (if rev then List.rev !rows else !rows)
+
+let execute_rev conn ?(name = "") ?(portal = "") ~params () =
+  let do_execute = do_execute conn name portal params false in
+  let details = [ "name"; name; "portal"; portal ] in
+  profile_op conn.uuid "execute" details do_execute
+
+let execute conn ?(name = "") ?(portal = "") ~params () =
+  let do_execute = do_execute conn name portal params true in
   let details = [ "name"; name; "portal"; portal ] in
   profile_op conn.uuid "execute" details do_execute
 

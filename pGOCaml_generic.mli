@@ -144,6 +144,7 @@ val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit ->
   * Synchronously checks for errors.
   *)
 
+val execute_rev : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list monad
 val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> unit -> row list monad
 (** [execute conn ?name ~params ()] executes the named or unnamed
   * statement [name], with the given parameters [params],
