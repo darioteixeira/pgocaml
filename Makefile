@@ -150,11 +150,11 @@ endif
 #
 
 findlib_install:
-	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo pGOCaml_generic.mli pGOCaml.mli
 
 reinstall:
 	ocamlfind remove $(PACKAGE)
-	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo
+	ocamlfind install $(PACKAGE) META pgocaml.a pgocaml.cma pgocaml.cmxa pGOCaml_generic.cm[ix] pGOCaml.cm[ix] pa_pgsql.cmo pGOCaml_generic.mli pGOCaml.mli
 
 install:
 	rm -rf $(DESTDIR)$(OCAMLLIBDIR)/$(PACKAGE)
