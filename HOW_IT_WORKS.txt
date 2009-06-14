@@ -1,11 +1,12 @@
-How PG'OCaml works
-$Id: HOW_IT_WORKS.txt,v 1.1 2007-05-24 12:59:55 rich Exp $
+-------------------------------------------------------------------------
+| How PG'OCaml works.							|
+-------------------------------------------------------------------------
 
 Enough people have asked me how PG'OCaml works that I am compiling
 this document to explain what is going on.
 
 1. Background
-----------------------------------------------------------------------
+-------------
 
 1.1 PREPARE
 
@@ -53,7 +54,7 @@ For example:
     ==> 2 columns returned with types SERIAL, VARCHAR(80)
 
 2. In OCaml
-----------------------------------------------------------------------
+-----------
 
 On the OCaml side we like to know the type of everything, and using
 DESCRIBE we can extend type inference right the way through to the
@@ -101,6 +102,7 @@ Notes:
 need to be reoptimised each time.
 
 3. Further reading
-----------------------------------------------------------------------
+------------------
 
 Now go and read: BUGS.txt, pGOCaml.mli, pa_pgsql.ml4
+

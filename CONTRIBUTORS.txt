@@ -1,8 +1,24 @@
-Gabriel de Perthuis
-gabriel.de-perthuis at laposte.net
+-------------------------------------------------------------------------
+| Contributors.								|
+-------------------------------------------------------------------------
 
-Contributed patches to make OMakefile builds work using a '-syntax' flag.
+* Gabriel de Perthuis:
 
-Dario Teixeira
+  Contributed patches to make OMakefile builds work using a '-syntax' flag.
 
-Tutorial and suggestions for fixes.
+* Dario Teixeira:
+
+  Tutorial, web site, miscellaneous patches, release maintenance.
+
+* Jérôme Vouillon:
+
+  Code refactoring to work in a monadic fashion (for Lwt, for example).
+
+* Mykola Stryebkov:
+
+  Support for large data sets.
+
+* Vincent Bernardoff:
+
+  Support for "point" type.
+

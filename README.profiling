@@ -1,3 +1,7 @@
+-------------------------------------------------------------------------
+| Profiling.								|
+-------------------------------------------------------------------------
+
 If PG'OCaml programs are started with the environment variable
 $PGPROFILING pointing to the name of a writable file, then profiling
 information about events is written to this file.
@@ -17,3 +21,4 @@ accordingly.
 
 The profile file will contain some potentially sensitive information
 such as database and user names (but not passwords).
+

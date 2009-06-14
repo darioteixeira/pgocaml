@@ -1,5 +1,8 @@
+-------------------------------------------------------------------------
+| Readme.								|
+-------------------------------------------------------------------------
+
 PG'OCaml is a set of OCaml bindings for the PostgreSQL database.
-$Id: README.txt,v 1.5 2007-09-03 17:18:38 rich Exp $
 
 Please note that this is not the first or only PGSQL bindings for
 OCaml.  Here are the others which you may want to consider:
@@ -34,7 +37,8 @@ other databases.
 
 ----------------------------------------------------------------------
 
-PG'OCaml (C) Copyright 2006 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)
+PG'OCaml (C) Copyright 2005-2009 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)
+and other authors (see CONTRIBUTORS.txt for details).
 
 This software is distributed under the GNU LGPL with OCaml linking
 exception.  Please see the file COPYING.LIB for full license.

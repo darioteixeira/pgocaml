@@ -1,5 +1,3 @@
-.cvsignore
-.depend
 BUGS.txt
 CONTRIBUTORS.txt
 COPYING.LIB
@@ -13,6 +11,8 @@ README.profiling
 pa_pgsql.ml4
 pGOCaml_config.ml
 pGOCaml_config.ml.in
+pGOCaml_generic.ml
+pGOCaml_generic.mli
 pGOCaml.ml
 pGOCaml.mli
 pgocaml_prof.ml

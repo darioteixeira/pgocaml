@@ -1,8 +1,10 @@
-Current bugs and other problems
-$Id: BUGS.txt,v 1.2 2006/02/27 16:31:07 rich Exp $
+-------------------------------------------------------------------------
+| Current bugs and other problems.					|
+-------------------------------------------------------------------------
+
 
 1. LEFT OUTER JOIN and nullability of named columns [FIXED]
----------------------------------------------------
+-----------------------------------------------------------
 
 Consider tables like:
 
@@ -35,7 +37,7 @@ heuristic for all columns, and so all return columns will have type
 "'a option".
 
 2. CREATE TEMPORARY TABLE [FIXED]
--------------------------
+---------------------------------
 
 Normally at compile time, statements are only prepared in the
 database.  You wouldn't ordinarily want to run statements at compile
@@ -71,7 +73,7 @@ any statements which use the table.  There doesn't seem to be a good
 way around this.
 
 3. Specifying lists as parameters [FIXED]
----------------------------------
+-----------------------------------------
 
 Suppose I want to select a subset of employees from my database.  We'd
 like to be able to write:
@@ -119,3 +121,4 @@ type-safe way. However because it is not possible to compile the
 fragments, it doesn't look like such a constructor could be
 written. If anyone has any ideas about this, please contact the
 author.
+
