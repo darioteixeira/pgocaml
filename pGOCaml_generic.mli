@@ -245,6 +245,7 @@ val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
 
+val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
 val int16_of_string : string -> int16

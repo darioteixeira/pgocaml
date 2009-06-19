@@ -247,6 +247,7 @@ val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
 
+val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
 val int16_of_string : string -> int16
@@ -1407,7 +1408,7 @@ let string_of_bytea b =
   Buffer.contents buf
 
 let string_of_string (x : string) = x
-
+let oid_of_string = Int32.of_string
 let bool_of_string = function
   | "true" | "t" -> true
   | "false" | "f" -> false

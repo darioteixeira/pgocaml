@@ -24,6 +24,7 @@ open ExtString
 open ExtList
 
 let nullable_name = "nullable"
+let unravel_name = "unravel"
 
 (* We need a database connection while compiling.  If people use the
  * override flags like "database=foo", then we may connect to several
@@ -62,13 +63,33 @@ let get_connection key =
 	  ?unix_domain_socket_dir () in
 
       (* Prepare the nullable test - see result conversions below. *)
-      let query = "select attnotnull from pg_attribute
-                    where attrelid = $1
-                      and attnum = $2" in
-      PGOCaml.prepare dbh ~query ~name:nullable_name ();
+      let nullable_query = "select attnotnull from pg_attribute where attrelid = $1 and attnum = $2" in
+      PGOCaml.prepare dbh ~query:nullable_query ~name:nullable_name ();
+
+      (* Prepare the unravel test. *)
+      let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
+      PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
       Hashtbl.add connections key dbh;
       dbh
+
+(* By using CREATE DOMAIN, the user may define types which are essentially aliases
+   for existing types.  If the original type is not recognised by PG'OCaml, this
+   functions recurses through the pg_type table to see if it happens to be an alias
+   for a type which we do know how to handle. *)
+let unravel_type dbh orig_type =
+  let rec unravel_type_aux ft =
+    try
+      PGOCaml.name_of_type ft
+    with PGOCaml.Error msg as exc ->
+      let params = [ Some (PGOCaml.string_of_oid ft) ] in
+      let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
+      match rows with
+        | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
+          unravel_type_aux (PGOCaml.oid_of_string typbasetype)
+        | _ ->
+          raise exc
+  in unravel_type_aux orig_type
 
 (* Return the list of numbers a <= i < b. *)
 let rec range a b =
@@ -199,8 +220,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
 	 let varname, list, option = List.assoc i varmap in
-	 let fn = PGOCaml.name_of_type param_type in
-	 let fn = "string_of_" ^ fn in
+	 let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
 	 let head =
 	   match list, option with
 	   | false, false ->
