@@ -74,9 +74,10 @@ let get_connection key =
       dbh
 
 (* By using CREATE DOMAIN, the user may define types which are essentially aliases
-   for existing types.  If the original type is not recognised by PG'OCaml, this
-   functions recurses through the pg_type table to see if it happens to be an alias
-   for a type which we do know how to handle. *)
+ * for existing types.  If the original type is not recognised by PG'OCaml, this
+ * functions recurses through the pg_type table to see if it happens to be an alias
+ * for a type which we do know how to handle.
+*)
 let unravel_type dbh orig_type =
   let rec unravel_type_aux ft =
     try
