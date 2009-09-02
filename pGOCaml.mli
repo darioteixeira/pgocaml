@@ -19,5 +19,8 @@
  * Boston, MA 02111-1307, USA.
  *)
 
+module Simple_thread : PGOCaml_generic.THREAD
+  with type 'a t = 'a
+
 include PGOCaml_generic.PGOCAML_GENERIC
   with type 'a monad = 'a

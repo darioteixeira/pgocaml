@@ -19,7 +19,7 @@
  * Boston, MA 02111-1307, USA.
  *)
 
-module M = PGOCaml_generic.Make (struct
+module Simple_thread = struct
   type 'a t = 'a
   let return x = x
   let (>>=) v f =  f v
@@ -36,6 +36,8 @@ module M = PGOCaml_generic.Make (struct
   let input_binary_int = input_binary_int
   let really_input = really_input
   let close_in = close_in
-end)
+end
+
+module M = PGOCaml_generic.Make (Simple_thread)
 
 include M
