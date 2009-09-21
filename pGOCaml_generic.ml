@@ -223,6 +223,7 @@ val name_of_type : ?modifier:int32 -> oid -> string
   * example, [name_of_type (Int32.of_int 25)] returns ["string"].
   *)
 
+type inet = Unix.inet_addr * int
 type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
@@ -237,6 +238,7 @@ val string_of_int32 : int32 -> string
 val string_of_int64 : int64 -> string
 val string_of_float : float -> string
 val string_of_point : point -> string
+val string_of_inet : inet -> string
 val string_of_timestamp : CalendarLib.Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
 val string_of_date : CalendarLib.Date.t -> string
@@ -255,6 +257,7 @@ val int32_of_string : string -> int32
 val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
+val inet_of_string : string -> inet
 val timestamp_of_string : string -> CalendarLib.Calendar.t
 val timestamptz_of_string : string -> timestamptz
 val date_of_string : string -> CalendarLib.Date.t
@@ -1307,23 +1310,24 @@ let describe_portal conn ?(portal = "") () =
  * in particular for parameters.
  *)
 let name_of_type ?modifier = function
-  | 16_l -> "bool"			(* BOOLEAN *)
-  | 17_l -> "bytea"			(* BYTEA *)
-  | 20_l -> "int64"			(* INT8 *)
-  | 21_l -> "int16"			(* INT2 *)
-  | 23_l -> "int32"			(* INT4 *)
-  | 25_l -> "string"			(* TEXT *)
-  | 600_l -> "point"                    (* POINT *)
-  | 700_l | 701_l -> "float"		(* FLOAT4, FLOAT8 *)
-  | 1007_l -> "int32_array"		(* INT4[] *)
-  | 1042_l -> "string"			(* CHAR(n) - treat as string *)
-  | 1043_l -> "string"			(* VARCHAR(n) - treat as string *)
-  | 1082_l -> "date"			(* DATE *)
-  | 1083_l -> "time"			(* TIME *)
-  | 1114_l -> "timestamp"		(* TIMESTAMP *)
-  | 1184_l -> "timestamptz"             (* TIMESTAMP WITH TIME ZONE *)
-  | 1186_l -> "interval"		(* INTERVAL *)
-  | 2278_l -> "unit"			(* VOID *)
+  | 16_l -> "bool"           (* BOOLEAN *)
+  | 17_l -> "bytea"          (* BYTEA *)
+  | 20_l -> "int64"          (* INT8 *)
+  | 21_l -> "int16"          (* INT2 *)
+  | 23_l -> "int32"          (* INT4 *)
+  | 25_l -> "string"         (* TEXT *)
+  | 600_l -> "point"         (* POINT *)
+  | 700_l | 701_l -> "float" (* FLOAT4, FLOAT8 *)
+  | 869_l -> "inet"          (* INET *)
+  | 1007_l -> "int32_array"  (* INT4[] *)
+  | 1042_l -> "string"       (* CHAR(n) - treat as string *)
+  | 1043_l -> "string"       (* VARCHAR(n) - treat as string *)
+  | 1082_l -> "date"         (* DATE *)
+  | 1083_l -> "time"         (* TIME *)
+  | 1114_l -> "timestamp"    (* TIMESTAMP *)
+  | 1184_l -> "timestamptz"  (* TIMESTAMP WITH TIME ZONE *)
+  | 1186_l -> "interval"     (* INTERVAL *)
+  | 2278_l -> "unit"         (* VOID *)
   | 1700_l ->
       (* XXX This is wrong - it will be changed to a fixed precision
        * numeric type later.
@@ -1340,11 +1344,26 @@ let name_of_type ?modifier = function
       (* For unknown types, look at <postgresql/catalog/pg_type.h>. *)
       raise (Error ("PGOCaml: unknown type for OID " ^ Int32.to_string i))
 
+type inet = Unix.inet_addr * int
 type timestamptz = Calendar.t * Time_Zone.t
 type int16 = int
 type bytea = string
 type point = float * float
 type int32_array = int32 array
+
+let string_of_inet (addr, mask) =
+  let hostmask =
+    if Unix.domain_of_sockaddr (Unix.ADDR_INET(addr, 1)) = Unix.PF_INET6
+    then 128
+    else 32
+  in
+    let addr = Unix.string_of_inet_addr addr
+    in
+      if mask = hostmask
+      then addr
+      else if mask >= 0 && mask < hostmask
+           then addr ^ "/" ^ string_of_int mask
+           else failwith "string_of_inet"
 
 let string_of_oid = Int32.to_string
 let string_of_bool = function
@@ -1419,6 +1438,19 @@ let int16_of_string = Pervasives.int_of_string
 let int32_of_string = Int32.of_string
 let int64_of_string = Int64.of_string
 let float_of_string = float_of_string
+
+let inet_of_string =
+  let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
+  in
+    fun str ->
+      let res = Pcre.extract ~rex ~full_match:false str
+      in
+        let addr = Unix.inet_addr_of_string res.(0)
+        and mask = res.(2)
+        in
+          if mask = ""
+          then (addr, (if res.(1) = "." then 32 else 128))
+          else (addr, int_of_string mask)
 
 let point_of_string =
   let float_pat = "[+-]?[0-9]+.*[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in

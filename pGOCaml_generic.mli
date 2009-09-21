@@ -221,6 +221,7 @@ val name_of_type : ?modifier:int32 -> oid -> string
   * example, [name_of_type (Int32.of_int 25)] returns ["string"].
   *)
 
+type inet = Unix.inet_addr * int
 type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
@@ -235,6 +236,7 @@ val string_of_int32 : int32 -> string
 val string_of_int64 : int64 -> string
 val string_of_float : float -> string
 val string_of_point : point -> string
+val string_of_inet : inet -> string
 val string_of_timestamp : CalendarLib.Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
 val string_of_date : CalendarLib.Date.t -> string
@@ -253,6 +255,7 @@ val int32_of_string : string -> int32
 val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
+val inet_of_string : string -> inet
 val timestamp_of_string : string -> CalendarLib.Calendar.t
 val timestamptz_of_string : string -> timestamptz
 val date_of_string : string -> CalendarLib.Date.t
