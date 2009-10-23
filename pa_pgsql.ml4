@@ -84,8 +84,8 @@ let unravel_type dbh orig_type =
       PGOCaml.name_of_type ft
     with PGOCaml.Error msg as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
-      let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
-      match rows with
+      let _rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
+      match _rows with
         | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
@@ -152,12 +152,12 @@ let pgsql_expand ?(flags = []) loc dbh query =
       | [] -> []
       | Pcre.Text text :: rest -> `Text text :: loop rest
       | Pcre.Delim _ :: Pcre.Group (1, list) ::
-	  Pcre.Group (2, option) :: Pcre.Group (3, varname) :: rest ->
+	  Pcre.Group (2, option) :: Pcre.Group (3, _varname) :: rest ->
 	  let list = match list with
 	    | "" -> false | "@" -> true | _ -> assert false in
 	  let option = match option with
 	    | "" -> false | "?" -> true | _ -> assert false in
-	  `Var (varname, list, option) :: loop rest
+	  `Var (_varname, list, option) :: loop rest
       | _ ->
 	  Loc.raise loc (
 	    Failure "Pcre.full_split: unexpected value returned"
@@ -177,13 +177,13 @@ let pgsql_expand ?(flags = []) loc dbh query =
       List.map (
 	function
 	| `Text text -> text
-	| `Var (varname, false, option) ->
+	| `Var (_varname, false, option) ->
 	    let i = next () in
-	    Hashtbl.add varmap i (varname, false, option);
+	    Hashtbl.add varmap i (_varname, false, option);
 	    sprintf "$%d" i
-	| `Var (varname, true, option) ->
+	| `Var (_varname, true, option) ->
 	    let i = next () in
-	    Hashtbl.add varmap i (varname, true, option);
+	    Hashtbl.add varmap i (_varname, true, option);
 	    sprintf "($%d)" i
       ) split
     ) in
@@ -220,18 +220,18 @@ let pgsql_expand ?(flags = []) loc dbh query =
   let params =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
-	 let varname, list, option = List.assoc i varmap in
+	 let _varname, list, option = List.assoc i varmap in
 	 let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
 	 let head =
 	   match list, option with
 	   | false, false ->
-	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:varname$) ] >>
+	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:_varname$) ] >>
 	   | false, true ->
-	     <:expr< [ Option.map PGOCaml.$lid:fn$ $lid:varname$ ] >>
+	     <:expr< [ Option.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
 	   | true, false ->
-	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:varname$ >>
+	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:_varname$ >>
 	   | true, true ->
-	     <:expr< List.map (fun x -> Option.map PGOCaml.$lid:fn$ x) $lid:varname$ >> in
+	     <:expr< List.map (fun x -> Option.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
 	 <:expr< [ $head$ :: $tail$ ] >>
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
@@ -244,12 +244,12 @@ let pgsql_expand ?(flags = []) loc dbh query =
       fun s tail ->
 	let head = match s with
 	  | `Text text -> <:expr< `Text $str:text$ >>
-	  | `Var (varname, list, option) ->
+	  | `Var (_varname, list, option) ->
 	      let list =
 		if list then <:expr< True >> else <:expr< False >> in
 	      let option =
 		if option then <:expr< True >> else <:expr< False >> in
-	      <:expr< `Var $str:varname$ $list$ $option$ >> in
+	      <:expr< `Var $str:_varname$ $list$ $option$ >> in
 	<:expr< [ $head$ :: $tail$ ] >>
     ) split <:expr< [] >> in
     <:expr<
@@ -267,11 +267,11 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	List.map (
 	  fun
 	  [ `Text text -> text
-	  | `Var varname False _ ->	(* non-list item *)
+	  | `Var _varname False _ ->	(* non-list item *)
 	      let () = incr i in	(* next parameter *)
 	      let () = incr j in	(* next placeholder number *)
 	      "$" ^ string_of_int j.contents
-	  | `Var varname True _ -> (* list item *)
+	  | `Var _varname True _ -> (* list item *)
 	      let param = List.nth params i.contents in
 	      let () = incr i in	(* next parameter *)
 	      "(" ^
@@ -349,10 +349,10 @@ let pgsql_expand ?(flags = []) loc dbh query =
 		  let params =
 		    [ Some (PGOCaml.string_of_oid table);
 		      Some (PGOCaml.string_of_int column) ] in
-		  let rows =
+		  let _rows =
 		    PGOCaml.execute my_dbh ~name:nullable_name ~params () in
 		  let not_nullable =
-		    match rows with
+		    match _rows with
 		    | [ [ Some b ] ] -> PGOCaml.bool_of_string b
 		    | _ -> false in
 		  not not_nullable
@@ -376,7 +376,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    <:expr< ( $conversion$, $Ast.exCom_of_list conversions$ ) >> in
 
       <:expr<
-	PGOCaml.bind $expr$ (fun rows ->
+	PGOCaml.bind $expr$ (fun _rows ->
         PGOCaml.return
           (let original_query = $str:query$ in
            List.rev_map (
@@ -398,12 +398,12 @@ let pgsql_expand ?(flags = []) loc dbh query =
                          ) row
                        ) in
                      raise (PGOCaml.Error msg) ]
-           ) rows))
+           ) _rows))
       >>
 
   | None ->
       <:expr<
-	PGOCaml.bind $expr$ (fun rows -> PGOCaml.return ())
+	PGOCaml.bind $expr$ (fun _rows -> PGOCaml.return ())
       >>
 
 open Syntax
