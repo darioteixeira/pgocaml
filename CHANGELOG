@@ -1,0 +1,36 @@
+Release 1.4
+===========
+
+* Boris Yakobowski's patch that replaces 'rows' and 'varname'
+  with '_rows' and '_varname' (avoids unused variable warnings)
+* Support for INET type (patch by David Allsopp)
+* Dario Teixeira's patch for type unravelling
+
+
+Release 1.3
+===========
+
+* Applied (slightly modified) Vincent Bernardoff's patches for 'point' type
+* Large data set patch by Mykola Stryebkov
+
+
+Release 1.2
+===========
+
+* Jérôme Vouillon's monadic version 
+* Updated to Calendar 2.x
+* Password authentication from $PGPASSWORD (by Dario Teixeira)
+* Syntax package now called 'syntax' instead of 'statements'
+
+
+Release 1.1
+===========
+
+* Added proper copyright notices to license.
+
+
+Release 1.0
+===========
+
+* First public release
+
