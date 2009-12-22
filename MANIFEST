@@ -1,13 +1,12 @@
 BUGS.txt
+CHANGELOG.txt
 CONTRIBUTORS.txt
 COPYING.LIB
 HOW_IT_WORKS.txt
-MANIFEST
-META.in
 Makefile
 Makefile.config
-README.txt
-README.profiling
+MANIFEST
+META.in
 pa_pgsql.ml4
 pGOCaml_config.ml
 pGOCaml_config.ml.in
@@ -16,5 +15,7 @@ pGOCaml_generic.mli
 pGOCaml.ml
 pGOCaml.mli
 pgocaml_prof.ml
-test_pgocaml.ml
+README.profiling
+README.txt
 test_pgocaml_lowlevel.ml
+test_pgocaml.ml

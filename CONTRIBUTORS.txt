@@ -22,3 +22,12 @@
 
   Support for "point" type.
 
+* Boris Yakobowski:
+
+  Patch that replaces 'rows' and 'varname' with '_rows' and '_varname'
+  (avoids unused variable warnings)
+
+* David Allsopp:
+
+  Support for INET type
+
