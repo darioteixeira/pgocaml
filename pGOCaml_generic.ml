@@ -228,7 +228,16 @@ type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
+
+type bool_array = bool array
 type int32_array = int32 array
+type int64_array = int64 array
+type string_array = string array
+type float_array = float array
+
+(** The following conversion functions are used by pa_pgsql to convert
+  * values in and out of the database.
+  *)
 
 val string_of_oid : oid -> string
 val string_of_bool : bool -> string
@@ -244,10 +253,15 @@ val string_of_timestamptz : timestamptz -> string
 val string_of_date : CalendarLib.Date.t -> string
 val string_of_time : CalendarLib.Time.t -> string
 val string_of_interval : CalendarLib.Calendar.Period.t -> string
-val string_of_int32_array : int32_array -> string
 val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
+
+val string_of_bool_array : bool_array -> string
+val string_of_int32_array : int32_array -> string
+val string_of_int64_array : int64_array -> string
+val string_of_string_array : string_array -> string
+val string_of_float_array : float_array -> string
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -263,12 +277,14 @@ val timestamptz_of_string : string -> timestamptz
 val date_of_string : string -> CalendarLib.Date.t
 val time_of_string : string -> CalendarLib.Time.t
 val interval_of_string : string -> CalendarLib.Calendar.Period.t
-val int32_array_of_string : string -> int32_array
 val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit
-(** These conversion functions are used by pa_pgsql to convert
-  * values in and out of the database.
-  *)
+
+val bool_array_of_string : string -> bool_array
+val int32_array_of_string : string -> int32_array
+val int64_array_of_string : string -> int64_array
+val string_array_of_string : string -> string_array
+val float_array_of_string : string -> float_array
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
@@ -1317,9 +1333,15 @@ let name_of_type ?modifier = function
   | 23_l -> "int32"          (* INT4 *)
   | 25_l -> "string"         (* TEXT *)
   | 600_l -> "point"         (* POINT *)
-  | 700_l | 701_l -> "float" (* FLOAT4, FLOAT8 *)
+  | 700_l
+  | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
   | 869_l -> "inet"          (* INET *)
+  | 1000_l -> "bool_array"   (* BOOLEAN[] *)
   | 1007_l -> "int32_array"  (* INT4[] *)
+  | 1009_l -> "string_array" (* TEXT[] *)
+  | 1016_l -> "int64_array"  (* INT8[] *)
+  | 1021_l
+  | 1022_l -> "float_array"  (* FLOAT4[], FLOAT8[] *)
   | 1042_l -> "string"       (* CHAR(n) - treat as string *)
   | 1043_l -> "string"       (* VARCHAR(n) - treat as string *)
   | 1082_l -> "date"         (* DATE *)
@@ -1349,7 +1371,12 @@ type timestamptz = Calendar.t * Time_Zone.t
 type int16 = int
 type bytea = string
 type point = float * float
+
+type bool_array = bool array
 type int32_array = int32 array
+type int64_array = int64 array
+type string_array = string array
+type float_array = float array
 
 let string_of_inet (addr, mask) =
   let hostmask =
@@ -1407,9 +1434,11 @@ let string_of_any_array a =
   Buffer.add_char buf '}';
   Buffer.contents buf
 
-let string_of_int32_array a =
-  let a = Array.map Int32.to_string a in
-  string_of_any_array a
+let string_of_bool_array a = string_of_any_array (Array.map string_of_bool a)
+let string_of_int32_array a = string_of_any_array (Array.map Int32.to_string a)
+let string_of_int64_array a = string_of_any_array (Array.map Int64.to_string a)
+let string_of_string_array a = string_of_any_array a
+let string_of_float_array a = string_of_any_array (Array.map string_of_float a)
 
 let string_of_bytea b =
   let len = String.length b in
@@ -1540,9 +1569,11 @@ let any_array_of_string str =
   let fields = String.nsplit str "," in
   Array.of_list fields
 
-let int32_array_of_string str =
-  let a = any_array_of_string str in
-  Array.map Int32.of_string a
+let bool_array_of_string str = Array.map bool_of_string (any_array_of_string str)
+let int32_array_of_string str = Array.map Int32.of_string (any_array_of_string str)
+let int64_array_of_string str = Array.map Int64.of_string (any_array_of_string str)
+let string_array_of_string str = any_array_of_string str
+let float_array_of_string str = Array.map float_of_string (any_array_of_string str)
 
 let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'

@@ -226,7 +226,16 @@ type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
+
+type bool_array = bool array
 type int32_array = int32 array
+type int64_array = int64 array
+type string_array = string array
+type float_array = float array
+
+(** The following conversion functions are used by pa_pgsql to convert
+  * values in and out of the database.
+  *)
 
 val string_of_oid : oid -> string
 val string_of_bool : bool -> string
@@ -242,10 +251,15 @@ val string_of_timestamptz : timestamptz -> string
 val string_of_date : CalendarLib.Date.t -> string
 val string_of_time : CalendarLib.Time.t -> string
 val string_of_interval : CalendarLib.Calendar.Period.t -> string
-val string_of_int32_array : int32_array -> string
 val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
+
+val string_of_bool_array : bool_array -> string
+val string_of_int32_array : int32_array -> string
+val string_of_int64_array : int64_array -> string
+val string_of_string_array : string_array -> string
+val string_of_float_array : float_array -> string
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -261,12 +275,14 @@ val timestamptz_of_string : string -> timestamptz
 val date_of_string : string -> CalendarLib.Date.t
 val time_of_string : string -> CalendarLib.Time.t
 val interval_of_string : string -> CalendarLib.Calendar.Period.t
-val int32_array_of_string : string -> int32_array
 val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit
-(** These conversion functions are used by pa_pgsql to convert
-  * values in and out of the database.
-  *)
+
+val bool_array_of_string : string -> bool_array
+val int32_array_of_string : string -> int32_array
+val int64_array_of_string : string -> int64_array
+val string_array_of_string : string -> string_array
+val float_array_of_string : string -> float_array
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
