@@ -1,3 +1,10 @@
+Release 1.5-dev
+===============
+
+* Dario Teixeira's patch adding support for more array types, namely
+  bool[], int8[], text[], float4[], and float8[].
+
+
 Release 1.4
 ===========
 
