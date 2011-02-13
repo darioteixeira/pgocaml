@@ -20,7 +20,17 @@
  *)
 
 open Printf
+
+IFDEF USE_BATTERIES THEN
+module String = struct
+  include String
+  include BatString
+end
+module Option = BatOption
+ELSE
 open ExtString
+ENDIF
+
 open CalendarLib
 
 module type THREAD = sig

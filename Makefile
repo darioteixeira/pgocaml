@@ -18,12 +18,23 @@
 
 include Makefile.config
 
+ifeq ($(USE_BATTERIES),yes)
+EXTLIB := batteries
+else
+EXTLIB := extlib
+endif
+
 SED	:= sed
 FGREP	:= fgrep
 
 OCAMLCFLAGS	:= -g
-OCAMLCPACKAGES	:= -package unix,extlib,pcre,calendar,csv
+OCAMLCPACKAGES	:= -package unix,$(EXTLIB),pcre,calendar,csv
 OCAMLCLIBS	:= -linkpkg
+
+OCAMLSYNTAX := -syntax camlp4o -package camlp4.macro
+ifeq ($(USE_BATTERIES),yes)
+OCAMLSYNTAX += -ppopt -DUSE_BATTERIES
+endif
 
 OCAMLOPTFLAGS	:=
 OCAMLOPTPACKAGES := $(OCAMLCPACKAGES)
@@ -37,7 +48,7 @@ FOR_P4  := \
 	$(call GETLIB,unix) \
 	$(call GETLIB,str) \
 	$(call GETLIB,pcre) \
-	$(call GETLIB,extlib) \
+	$(call GETLIB,$(EXTLIB)) \
 	$(call GETLIB,calendar) \
 	$(call GETLIB,csv) \
 	./pgocaml.cma
@@ -49,6 +60,10 @@ FOR_P4  := \
 
 OCAMLVERSION := $(shell ocamlc -v | $(FGREP) "version" | $(SED) -e "s/.*3\.\(..\)\..*/\1/")
 P4_PARAMS := $(shell [ $(OCAMLVERSION) -ge 9 ] && echo -loc loc)
+P4_PARAMS += -parser Camlp4MacroParser
+ifeq ($(USE_BATTERIES),yes)
+P4_PARAMS += -DUSE_BATTERIES
+endif
 
 ifdef WINDOWS
   EXECUTABLE_SUFFIX := .exe
@@ -109,9 +124,9 @@ pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 .mli.cmi:
 	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCINCS) $(OCAMLCPACKAGES) -c $<
 .ml.cmo:
-	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLCINCS) $(OCAMLCPACKAGES) -c $<
+	ocamlfind ocamlc $(OCAMLCFLAGS) $(OCAMLSYNTAX) $(OCAMLCINCS) $(OCAMLCPACKAGES) -c $<
 .ml.cmx:
-	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLOPTINCS) $(OCAMLOPTPACKAGES) -c $<
+	ocamlfind ocamlopt $(OCAMLOPTFLAGS) $(OCAMLSYNTAX) $(OCAMLOPTINCS) $(OCAMLOPTPACKAGES) -c $<
 
 #
 # Findlib META file.
@@ -120,6 +135,7 @@ pGOCaml_config.ml: pGOCaml_config.ml.in Makefile Makefile.config
 META:	META.in Makefile.config
 	$(SED)  -e 's/@PACKAGE@/$(PACKAGE)/' \
 		-e 's/@VERSION@/$(VERSION)/' \
+		-e 's/@EXTLIB@/$(EXTLIB)/' \
 		< $< > $@
 
 #
@@ -138,7 +154,8 @@ depend: .depend
 
 .depend: pGOCaml_config.ml
 	rm -f .depend
-	ocamldep pGOCaml*.ml pGOCaml*.mli > $@
+	ocamlfind ocamldep $(OCAMLSYNTAX) pGOCaml*.ml >$@
+	ocamldep pGOCaml*.mli >> $@
 	-ocamldep -pp "camlp4o $(FOR_P4) ./pa_pgsql.cmo" >> $@
 
 ifeq ($(wildcard .depend),.depend)
@@ -212,7 +229,7 @@ dpkg:
 doc:
 	rm -rf html
 	mkdir html
-	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) -d html pGOCaml_generic.mli pGOCaml_generic.ml pGOCaml.mli pGOCaml.ml
+	-ocamlfind ocamldoc $(OCAMLDOCFLAGS) $(OCAMLSYNTAX) -d html pGOCaml_generic.mli pGOCaml_generic.ml pGOCaml.mli pGOCaml.ml
 
 #
 # Miscelaneous.

@@ -20,8 +20,12 @@
 open Camlp4.PreCast
 
 open Printf
+IFDEF USE_BATTERIES THEN
+open Batteries_uni
+ELSE
 open ExtString
 open ExtList
+ENDIF
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -99,6 +103,9 @@ let rec range a b =
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
 let pgsql_expand ?(flags = []) loc dbh query =
+  (* Get the option module *)
+  let option_module = IFDEF USE_BATTERIES THEN <:expr<BatOption>>
+    ELSE <:expr<Option>> ENDIF in
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
@@ -227,11 +234,11 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	   | false, false ->
 	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:_varname$) ] >>
 	   | false, true ->
-	     <:expr< [ Option.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
+	     <:expr< [ $option_module$.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
 	   | true, false ->
 	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:_varname$ >>
 	   | true, true ->
-	     <:expr< List.map (fun x -> Option.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
+	     <:expr< List.map (fun x -> $option_module$.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
 	 <:expr< [ $head$ :: $tail$ ] >>
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
@@ -359,9 +366,9 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	      | _ -> true (* Assume it could be nullable. *) in
 	    let col = <:expr< $lid:"c" ^ string_of_int i$ >> in
 	    if nullable then
-	      <:expr< Option.map PGOCaml.$lid:fn$ $col$ >>
+	      <:expr< $option_module$.map PGOCaml.$lid:fn$ $col$ >>
 	    else
-	      <:expr< PGOCaml.$lid:fn$ (Option.get $col$) >>
+	      <:expr< PGOCaml.$lid:fn$ ($option_module$.get $col$) >>
 	) results in
 
       let convert =

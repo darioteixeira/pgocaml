@@ -3,6 +3,8 @@ Release 1.5-dev
 
 * Dario Teixeira's patch adding support for more array types, namely
   bool[], int8[], text[], float4[], and float8[].
+* Michael Ekstrand's patch to make PG'Ocaml work with batteries,
+  if so requested (it still uses ExtLib by default).
 
 
 Release 1.4
