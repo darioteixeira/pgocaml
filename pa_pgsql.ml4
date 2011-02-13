@@ -29,6 +29,7 @@ ENDIF
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
+let hstore_name = "hstore"
 
 (* We need a database connection while compiling.  If people use the
  * override flags like "database=foo", then we may connect to several
@@ -74,8 +75,26 @@ let get_connection key =
       let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
       PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
+      (* Prepare the hstore test. *)
+      let hstore_query = "select typname from pg_type where oid = $1" in
+      PGOCaml.prepare dbh ~query:hstore_query ~name:hstore_name ();
+
       Hashtbl.add connections key dbh;
       dbh
+
+
+(* Wrapper around [PGOCaml.name_of_type].
+*)
+let name_of_type_wrapper ?modifier dbh oid =
+  try
+    PGOCaml.name_of_type ?modifier oid
+  with PGOCaml.Error msg as exc ->
+    let params = [ Some (PGOCaml.string_of_oid oid) ] in
+    let rows = PGOCaml.execute dbh ~name:hstore_name ~params () in
+    match rows with
+      | [ [ Some "hstore" ] ] -> "hstore"
+      | _ -> raise exc
+
 
 (* By using CREATE DOMAIN, the user may define types which are essentially aliases
  * for existing types.  If the original type is not recognised by PG'OCaml, this
@@ -85,11 +104,11 @@ let get_connection key =
 let unravel_type dbh orig_type =
   let rec unravel_type_aux ft =
     try
-      PGOCaml.name_of_type ft
+      name_of_type_wrapper dbh ft
     with PGOCaml.Error msg as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
-      let _rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
-      match _rows with
+      let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
+      match rows with
         | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
@@ -343,8 +362,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	  fun i result ->
 	    let field_type = result.PGOCaml.field_type in
 	    let modifier = result.PGOCaml.modifier in
-	    let fn =
-	      PGOCaml.name_of_type ~modifier field_type in
+	    let fn = name_of_type_wrapper ~modifier my_dbh field_type in
 	    let fn = fn ^ "_of_string" in
 	    let nullable =
 	      f_nullable_results ||

@@ -238,6 +238,7 @@ type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
+type hstore = (string * string option) list
 
 type bool_array = bool array
 type int32_array = int32 array
@@ -257,6 +258,7 @@ val string_of_int32 : int32 -> string
 val string_of_int64 : int64 -> string
 val string_of_float : float -> string
 val string_of_point : point -> string
+val string_of_hstore : hstore -> string
 val string_of_inet : inet -> string
 val string_of_timestamp : CalendarLib.Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
@@ -281,6 +283,7 @@ val int32_of_string : string -> int32
 val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
+val hstore_of_string: string -> hstore
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> CalendarLib.Calendar.t
 val timestamptz_of_string : string -> timestamptz
@@ -1381,12 +1384,23 @@ type timestamptz = Calendar.t * Time_Zone.t
 type int16 = int
 type bytea = string
 type point = float * float
+type hstore = (string * string option) list
 
 type bool_array = bool array
 type int32_array = int32 array
 type int64_array = int64 array
 type string_array = string array
 type float_array = float array
+
+let string_of_hstore hstore =
+  let string_of_quoted str = "\"" ^ str ^ "\"" in
+  let string_of_mapping (key, value) =
+    let key_str = string_of_quoted key
+    and value_str = match value with
+      | Some v -> string_of_quoted v
+      | None -> "NULL"
+    in key_str ^ "=>" ^ value_str
+  in String.join ", " (List.map string_of_mapping hstore)
 
 let string_of_inet (addr, mask) =
   let hostmask =
@@ -1477,6 +1491,36 @@ let int16_of_string = Pervasives.int_of_string
 let int32_of_string = Int32.of_string
 let int64_of_string = Int64.of_string
 let float_of_string = float_of_string
+
+let hstore_of_string str =
+  let expect target stream =
+    if List.exists (fun c -> c <> Stream.next stream) target
+    then raise (Error ("PGOCaml: unexpected input in hstore_of_string")) in
+  let parse_quoted stream =
+    let rec loop accum stream = match Stream.next stream with
+      | '"'  -> String.implode (List.rev accum)
+      | '\\' -> loop (Stream.next stream :: accum) stream
+      | x    -> loop (x :: accum) stream in
+    expect ['"'] stream;
+    loop [] stream in
+  let parse_value stream = match Stream.peek stream with
+    | Some 'N' -> (expect ['N'; 'U'; 'L'; 'L'] stream; None)
+    | _        -> Some (parse_quoted stream) in
+  let parse_mapping stream =
+    let key = parse_quoted stream in
+    expect ['='; '>'] stream;
+    let value = parse_value stream in
+    (key, value) in
+  let parse_main stream =
+    let rec loop accum stream =
+      let mapping = parse_mapping stream in
+      match Stream.peek stream with
+        | Some _ -> (expect [','; ' '] stream; loop (mapping :: accum) stream)
+        | None   -> mapping :: accum in
+    match Stream.peek stream with
+      | Some _ -> loop [] stream
+      | None   -> [] in
+  parse_main (Stream.of_string str)
 
 let inet_of_string =
   let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
