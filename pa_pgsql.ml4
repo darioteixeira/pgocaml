@@ -386,7 +386,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    if nullable then
 	      <:expr< $option_module$.map PGOCaml.$lid:fn$ $col$ >>
 	    else
-	      <:expr< PGOCaml.$lid:fn$ ($option_module$.get $col$) >>
+	      <:expr< PGOCaml.$lid:fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
 	) results in
 
       let convert =
