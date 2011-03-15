@@ -920,10 +920,19 @@ let connect ?host ?port ?user ?password ?database
    * is mainly for debugging and profiling.
    *)
   let uuid =
+    (*
+     * On Windows, the result of Unix.getpid is largely meaningless (it's not unique)
+     * and, more importantly, Unix.getppid is not implemented.
+     *)
+    let ppid =
+      try
+        Unix.getppid ()
+      with Invalid_argument "Unix.getppid not implemented" -> 0
+    in
     sprintf "%s %d %d %g %s %g"
       (Unix.gethostname ())
       (Unix.getpid ())
-      (Unix.getppid ())
+      ppid
       (Unix.gettimeofday ())
       Sys.executable_name
       ((Unix.times ()).Unix.tms_utime) in
