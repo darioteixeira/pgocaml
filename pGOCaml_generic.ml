@@ -1474,6 +1474,7 @@ let string_of_string_array a = string_of_any_array a
 let string_of_float_array a = string_of_any_array (Array.map string_of_float a)
 
 let string_of_bytea b =
+  Printf.eprintf "### string_of_bytea: %S\n" b;
   let len = String.length b in
   let buf = Buffer.create (len * 2) in
   for i = 0 to len - 1 do
@@ -1642,7 +1643,35 @@ let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'
 let oct_val c = Char.code c - 0x30
 
-let bytea_of_string str =
+let is_hex_digit = function '0'..'9' | 'a'..'f' | 'A'..'F' -> true | _ -> false
+
+let hex_val c =
+  let offset = match c with
+    | '0'..'9' -> 0x30
+    | 'a'..'f' -> 0x57
+    | 'A'..'F' -> 0x37
+    | _	       -> failwith "hex_val"
+  in Char.code c - offset
+
+(* Deserialiser for the new 'hex' format introduced in PostgreSQL 9.0. *)
+let bytea_of_string_hex str =
+  let len = String.length str in
+  let buf = Buffer.create ((len-2)/2) in
+  let i = ref 3 in
+  while !i < len do
+    let hi_nibble = str.[!i-1] in
+    let lo_nibble = str.[!i] in
+    i := !i+2;
+    if is_hex_digit hi_nibble && is_hex_digit lo_nibble
+    then begin
+      let byte = ((hex_val hi_nibble) lsl 4) + (hex_val lo_nibble) in
+      Buffer.add_char buf (Char.chr byte)
+    end
+  done;
+  Buffer.contents buf
+
+(* Deserialiser for the old 'escape' format used in PostgreSQL < 9.0. *)
+let bytea_of_string_escape str =
   let len = String.length str in
   let buf = Buffer.create len in
   let i = ref 0 in
@@ -1671,6 +1700,16 @@ let bytea_of_string str =
     )
   done;
   Buffer.contents buf
+
+(* PostgreSQL 9.0 introduced the new 'hex' format for binary data.
+   We must therefore check whether the data begins with a magic sequence
+   that identifies this new format and if so call the appropriate parser;
+   if it doesn't, then we invoke the parser for the old 'escape' format.
+*)
+let bytea_of_string str =
+	if String.starts_with str "\\x"
+	then bytea_of_string_hex str
+	else bytea_of_string_escape str
 
 let bind = (>>=)
 let return = Thread.return
