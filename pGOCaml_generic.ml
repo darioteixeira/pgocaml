@@ -1474,7 +1474,6 @@ let string_of_string_array a = string_of_any_array a
 let string_of_float_array a = string_of_any_array (Array.map string_of_float a)
 
 let string_of_bytea b =
-  Printf.eprintf "### string_of_bytea: %S\n" b;
   let len = String.length b in
   let buf = Buffer.create (len * 2) in
   for i = 0 to len - 1 do

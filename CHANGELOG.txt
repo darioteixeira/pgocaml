@@ -8,6 +8,8 @@ Release 1.5-dev
 * Dario Teixeira's patch adding support for Hstore.
 * David Allsopp's patch fixing connection on Windows.
 * David Allsopp's patch for better reporting of nullable results.
+* Dario Teixeira's patch adding support for the 'hex' serialisation
+  format introduced with PostgreSQL 9.0.
 
 
 Release 1.4
