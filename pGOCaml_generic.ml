@@ -234,7 +234,7 @@ val name_of_type : ?modifier:int32 -> oid -> string
   *)
 
 type inet = Unix.inet_addr * int
-type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
+type timestamptz = Calendar.t * Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
@@ -260,11 +260,11 @@ val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
 val string_of_inet : inet -> string
-val string_of_timestamp : CalendarLib.Calendar.t -> string
+val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
-val string_of_date : CalendarLib.Date.t -> string
-val string_of_time : CalendarLib.Time.t -> string
-val string_of_interval : CalendarLib.Calendar.Period.t -> string
+val string_of_date : Date.t -> string
+val string_of_time : Time.t -> string
+val string_of_interval : Calendar.Period.t -> string
 val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
@@ -285,11 +285,11 @@ val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string: string -> hstore
 val inet_of_string : string -> inet
-val timestamp_of_string : string -> CalendarLib.Calendar.t
+val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz
-val date_of_string : string -> CalendarLib.Date.t
-val time_of_string : string -> CalendarLib.Time.t
-val interval_of_string : string -> CalendarLib.Calendar.Period.t
+val date_of_string : string -> Date.t
+val time_of_string : string -> Time.t
+val interval_of_string : string -> Calendar.Period.t
 val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit
 
@@ -1435,9 +1435,9 @@ let string_of_int32 = Int32.to_string
 let string_of_int64 = Int64.to_string
 let string_of_float = string_of_float
 let string_of_point (x, y) = "(" ^ (string_of_float x) ^ "," ^ (string_of_float y) ^ ")"
-let string_of_timestamp = Printer.CalendarPrinter.to_string
+let string_of_timestamp = Printer.Calendar.to_string
 let string_of_timestamptz (cal, tz) =
-  Printer.CalendarPrinter.to_string cal ^
+  Printer.Calendar.to_string cal ^
     match tz with
     | Time_Zone.UTC -> "+00"
     | Time_Zone.Local ->
@@ -1447,8 +1447,8 @@ let string_of_timestamptz (cal, tz) =
     | Time_Zone.UTC_Plus gap ->
 	if gap >= 0 then sprintf "+%02d" gap
 	else sprintf "-%02d" (-gap)
-let string_of_date = Printer.DatePrinter.to_string
-let string_of_time = Printer.TimePrinter.to_string
+let string_of_date = Printer.Date.to_string
+let string_of_time = Printer.Time.to_string
 let string_of_interval p =
   let y, m, d, s = Calendar.Period.ymds p in
   sprintf "%d years %d mons %d days %d seconds" y m d s
@@ -1555,7 +1555,7 @@ let point_of_string =
     with
       | _ -> failwith "point_of_string"
 
-let date_of_string = Printer.DatePrinter.from_string
+let date_of_string = Printer.Date.from_string
 
 let time_of_string str =
   (* Remove trailing ".microsecs" if present. *)
@@ -1564,7 +1564,7 @@ let time_of_string str =
     if n > 8 && str.[8] = '.' then
       String.sub str 0 8
     else str in
-  Printer.TimePrinter.from_string str
+  Printer.Time.from_string str
 
 let timestamp_of_string str =
   (* Remove trailing ".microsecs" if present. *)
@@ -1573,7 +1573,7 @@ let timestamp_of_string str =
     if n > 19 && str.[19] = '.' then
       String.sub str 0 19
     else str in
-  Printer.CalendarPrinter.from_string str
+  Printer.Calendar.from_string str
 
 let timestamptz_of_string str =
   (* Split into datetime+timestamp. *)

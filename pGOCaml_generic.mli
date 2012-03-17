@@ -222,7 +222,7 @@ val name_of_type : ?modifier:int32 -> oid -> string
   *)
 
 type inet = Unix.inet_addr * int
-type timestamptz = CalendarLib.Calendar.t * CalendarLib.Time_Zone.t
+type timestamptz = Calendar.t * Time_Zone.t
 type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
@@ -248,11 +248,11 @@ val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
 val string_of_inet : inet -> string
-val string_of_timestamp : CalendarLib.Calendar.t -> string
+val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
-val string_of_date : CalendarLib.Date.t -> string
-val string_of_time : CalendarLib.Time.t -> string
-val string_of_interval : CalendarLib.Calendar.Period.t -> string
+val string_of_date : Date.t -> string
+val string_of_time : Time.t -> string
+val string_of_interval : Calendar.Period.t -> string
 val string_of_bytea : bytea -> string
 val string_of_string : string -> string
 val string_of_unit : unit -> string
@@ -273,11 +273,11 @@ val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string: string -> hstore
 val inet_of_string : string -> inet
-val timestamp_of_string : string -> CalendarLib.Calendar.t
+val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz
-val date_of_string : string -> CalendarLib.Date.t
-val time_of_string : string -> CalendarLib.Time.t
-val interval_of_string : string -> CalendarLib.Calendar.Period.t
+val date_of_string : string -> Date.t
+val time_of_string : string -> Time.t
+val interval_of_string : string -> Calendar.Period.t
 val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit
 
