@@ -1,4 +1,4 @@
-Release 1.5-dev
+Release 1.5
 ===============
 
 * Dario Teixeira's patch adding support for more array types, namely
@@ -10,6 +10,7 @@ Release 1.5-dev
 * David Allsopp's patch for better reporting of nullable results.
 * Dario Teixeira's patch adding support for the 'hex' serialisation
   format introduced with PostgreSQL 9.0.
+* Matías Giovannini's patch adding support for cursors.
 
 
 Release 1.4

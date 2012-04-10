@@ -19,6 +19,8 @@
  * Boston, MA 02111-1307, USA.
  *)
 
+(**	Type-safe access to PostgreSQL databases. *)
+
 open CalendarLib
 
 module type THREAD = sig
@@ -96,12 +98,12 @@ val serial : 'a t -> string -> int64 monad
   *)
 
 val serial4 : 'a t -> string -> int32 monad
-(** As {!PGOCaml.serial} but assumes that the column is a SERIAL or
+(** As {!serial} but assumes that the column is a SERIAL or
   * SERIAL4 type.
   *)
 
 val serial8 : 'a t -> string -> int64 monad
-(** Same as {!PGOCaml.serial}.
+(** Same as {!serial}.
   *)
 
 (** {6 Miscellaneous} *)
@@ -174,9 +176,11 @@ val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> uni
   *
   * The optional [?portal] parameter may be used to name the portal
   * created in step (1) above (otherwise the unnamed portal is used).
-  * This is only important if you want to call {!PGOCaml.describe_portal}
+  * This is only important if you want to call {!describe_portal}
   * to find out the result types.
   *)
+
+val cursor : 'a t -> ?name:string -> ?portal:string -> params:param list -> (row -> unit monad) -> unit monad
 
 val close_statement : 'a t -> ?name:string -> unit -> unit monad
 (** [close_statement conn ?name ()] closes a prepared statement and frees

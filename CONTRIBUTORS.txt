@@ -29,5 +29,13 @@
 
 * David Allsopp:
 
-  Support for INET type
+  Support for INET type, miscellaneous fixes
+
+* Michael Ekstrand:
+
+  OCaml Batteries support.
+
+* Matías Giovannini:
+
+  Cursor support.
 

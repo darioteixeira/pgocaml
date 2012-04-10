@@ -24,15 +24,15 @@ open Printf
 
 open ExtList
 
+let print_row i row =
+  printf "row %d: [%s]\n" i
+    (String.concat "; "
+      (List.map (function
+		| None -> "NULL"
+		| Some str -> sprintf "%S" str) row))
+
 let print_rows rows =
-  List.iteri (
-    fun i row ->
-      printf "row %d: [%s]\n" i
-	(String.concat "; "
-	   (List.map (function
-		      | None -> "NULL"
-		      | Some str -> sprintf "%S" str) row))
-  ) rows
+  List.iteri print_row rows
 
 let print_params_description params =
   printf "params:\n";
@@ -62,8 +62,8 @@ let () =
   let query = "select current_timestamp" in
   let name = "timestamp_query" in
   ignore (PGOCaml.prepare dbh ~query ~name ());
-  let rows = PGOCaml.execute dbh ~name ~params:[] () in
-  print_rows rows;
+  let i = ref 0 in
+  PGOCaml.cursor dbh ~name ~params:[] (fun row -> incr i; print_row !i row);
 
   (* Describe the statement. *)
   let params, results = PGOCaml.describe_statement dbh ~name () in
@@ -75,8 +75,8 @@ let () =
   let types = [ 23l; 23l ] in (* 23 = int4 *)
   let name = "sum_query" in
   ignore (PGOCaml.prepare dbh ~query ~name ~types ());
-  let rows = PGOCaml.execute dbh ~name ~params:[Some "1"; Some "2"] () in
-  print_rows rows;
+  let i = ref 0 in
+  PGOCaml.cursor dbh ~name ~params:[Some "1"; Some "2"] (fun row -> incr i; print_row !i row);
 
   (* Describe the statement. *)
   let params, results = PGOCaml.describe_statement dbh ~name () in

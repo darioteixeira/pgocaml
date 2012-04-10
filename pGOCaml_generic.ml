@@ -108,12 +108,12 @@ val serial : 'a t -> string -> int64 monad
   *)
 
 val serial4 : 'a t -> string -> int32 monad
-(** As {!PGOCaml.serial} but assumes that the column is a SERIAL or
+(** As {!serial} but assumes that the column is a SERIAL or
   * SERIAL4 type.
   *)
 
 val serial8 : 'a t -> string -> int64 monad
-(** Same as {!PGOCaml.serial}.
+(** Same as {!serial}.
   *)
 
 (** {6 Miscellaneous} *)
@@ -189,6 +189,8 @@ val execute : 'a t -> ?name:string -> ?portal:string -> params:param list -> uni
   * This is only important if you want to call {!PGOCaml.describe_portal}
   * to find out the result types.
   *)
+
+val cursor : 'a t -> ?name:string -> ?portal:string -> params:param list -> (row -> unit monad) -> unit monad
 
 val close_statement : 'a t -> ?name:string -> unit -> unit monad
 (** [close_statement conn ?name ()] closes a prepared statement and frees
@@ -1093,7 +1095,7 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
   let details = [ "query"; query; "name"; name ] in
   profile_op conn.uuid "prepare" details do_prepare
 
-let do_execute conn name portal params rev () =
+let iter_execute conn name portal params proc () =
     (* Bind *)
     let msg = new_message 'B' in
     add_string msg portal;
@@ -1125,7 +1127,6 @@ let do_execute conn name portal params rev () =
      * ReadyForQuery.  In the process we may get some rows back from
      * the database, no data, or an error.
      *)
-    let rows = ref [] in
     let rec loop () =
       (* NB: receive_message flushes the output connection. *)
       receive_message conn >>= fun msg ->
@@ -1146,8 +1147,7 @@ let do_execute conn name portal params rev () =
 	    | (0, _) -> Some ""
 	    | (i, bytes) -> Some bytes
 	  ) fields in
-	  rows := fields :: !rows;
-	  loop ()
+	  proc fields >>= loop
       | NoData -> loop ()
       | ParameterStatus _ ->
 	  (* 43.2.6: ParameterStatus messages will be generated whenever
@@ -1165,7 +1165,12 @@ let do_execute conn name portal params rev () =
 	    (Error ("PGOCaml: unknown response message: " ^
 		      string_of_msg_t msg))
     in
-    loop () >>= fun () ->
+    loop ()
+
+let do_execute conn name portal params rev () =
+    let rows = ref [] in
+    iter_execute conn name portal params
+        (fun fields -> return (rows := fields :: !rows)) () >>= fun () ->
     (* Return the result rows. *)
     return (if rev then List.rev !rows else !rows)
 
@@ -1178,6 +1183,11 @@ let execute conn ?(name = "") ?(portal = "") ~params () =
   let do_execute = do_execute conn name portal params true in
   let details = [ "name"; name; "portal"; portal ] in
   profile_op conn.uuid "execute" details do_execute
+
+let cursor conn ?(name = "") ?(portal = "") ~params proc =
+  let do_execute = iter_execute conn name portal params proc in
+  let details = [ "name"; name; "portal"; portal ] in
+  profile_op conn.uuid "cursor" details do_execute
 
 let begin_work conn =
   let query = "begin work" in
