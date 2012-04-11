@@ -11,6 +11,8 @@ Release 1.5
 * Dario Teixeira's patch adding support for the 'hex' serialisation
   format introduced with PostgreSQL 9.0.
 * Matías Giovannini's patch adding support for cursors.
+* Dario Teixeira's patch adding support for the various transaction
+  options in function 'begin_work'.
 
 
 Release 1.4

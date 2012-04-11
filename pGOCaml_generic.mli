@@ -49,6 +49,10 @@ type 'a t				(** Database handle. *)
 
 type 'a monad
 
+type isolation = [ `Serializable | `Repeatable_read | `Read_committed | `Read_uncommitted ]
+
+type access = [ `Read_write | `Read_only ]
+
 exception Error of string
 (** For library errors. *)
 
@@ -79,7 +83,7 @@ val ping : 'a t -> unit monad
 
 (** {6 Transactions} *)
 
-val begin_work : 'a t -> unit monad
+val begin_work : ?isolation:isolation -> ?access:access -> ?deferrable:bool -> 'a t -> unit monad
 (** Start a transaction. *)
 
 val commit : 'a t -> unit monad

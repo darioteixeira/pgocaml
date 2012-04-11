@@ -59,6 +59,10 @@ type 'a t				(** Database handle. *)
 
 type 'a monad
 
+type isolation = [ `Serializable | `Repeatable_read | `Read_committed | `Read_uncommitted ]
+
+type access = [ `Read_write | `Read_only ]
+
 exception Error of string
 (** For library errors. *)
 
@@ -89,7 +93,7 @@ val ping : 'a t -> unit monad
 
 (** {6 Transactions} *)
 
-val begin_work : 'a t -> unit monad
+val begin_work : ?isolation:isolation -> ?access:access -> ?deferrable:bool -> 'a t -> unit monad
 (** Start a transaction. *)
 
 val commit : 'a t -> unit monad
@@ -318,6 +322,10 @@ type 'a t = {
 }
 
 type 'a monad = 'a Thread.t
+
+type isolation = [ `Serializable | `Repeatable_read | `Read_committed | `Read_uncommitted ]
+
+type access = [ `Read_write | `Read_only ]
 
 exception Error of string
 
@@ -1189,8 +1197,23 @@ let cursor conn ?(name = "") ?(portal = "") ~params proc =
   let details = [ "name"; name; "portal"; portal ] in
   profile_op conn.uuid "cursor" details do_execute
 
-let begin_work conn =
-  let query = "begin work" in
+let begin_work ?isolation ?access ?deferrable conn =
+  let isolation_str = match isolation with
+    | None -> ""
+    | Some x -> match x with
+      | `Serializable -> " serializable"
+      | `Repeatable_read -> " repeatable read"
+      | `Read_committed -> " read committed"
+      | `Read_uncommitted -> " read uncommitted"
+  and access_str = match access with
+    | None -> ""
+    | Some x -> match x with
+      | `Read_write -> " read write"
+      | `Read_only -> " read only"
+  and deferrable_str = match deferrable with
+    | None -> ""
+    | Some x -> (match x with true -> "" | false -> " not") ^ " deferrable" in
+  let query = "begin work" ^ isolation_str ^ access_str ^ deferrable_str in
   prepare conn ~query () >>= fun () ->
   execute conn ~params:[] () >>= fun _ ->
   return ()
