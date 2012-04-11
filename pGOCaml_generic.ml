@@ -1200,11 +1200,11 @@ let cursor conn ?(name = "") ?(portal = "") ~params proc =
 let begin_work ?isolation ?access ?deferrable conn =
   let isolation_str = match isolation with
     | None -> ""
-    | Some x -> match x with
-      | `Serializable -> " serializable"
-      | `Repeatable_read -> " repeatable read"
-      | `Read_committed -> " read committed"
-      | `Read_uncommitted -> " read uncommitted"
+    | Some x -> " isolation level " ^ (match x with
+      | `Serializable -> "serializable"
+      | `Repeatable_read -> "repeatable read"
+      | `Read_committed -> "read committed"
+      | `Read_uncommitted -> "read uncommitted")
   and access_str = match access with
     | None -> ""
     | Some x -> match x with
