@@ -289,7 +289,7 @@ val int32_of_string : string -> int32
 val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
-val hstore_of_string: string -> hstore
+val hstore_of_string : string -> hstore
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz
