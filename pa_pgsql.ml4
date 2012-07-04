@@ -121,7 +121,7 @@ let rec range a b =
 
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
-let pgsql_expand ?(flags = []) loc dbh query =
+let pgsql_expand ?(flags = []) _loc dbh query =
   (* Get the option module *)
   let option_module = IFDEF USE_BATTERIES THEN <:expr<BatOption>>
     ELSE <:expr<Option>> ENDIF in
@@ -154,7 +154,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	let socket = String.sub str 23 (String.length str - 23) in
 	key := { !key with unix_domain_socket_dir = Some socket }
     | str ->
-	Loc.raise loc (
+	Loc.raise _loc (
 	  Failure ("Unknown flag: " ^ str)
 	)
   ) flags;
@@ -185,7 +185,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
 	    | "" -> false | "?" -> true | _ -> assert false in
 	  `Var (_varname, list, option) :: loop rest
       | _ ->
-	  Loc.raise loc (
+	  Loc.raise _loc (
 	    Failure "Pcre.full_split: unexpected value returned"
 	  )
     in
@@ -220,7 +220,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
       PGOCaml.prepare my_dbh ~query ();
       PGOCaml.describe_statement my_dbh (), varmap
     with
-      exn -> Loc.raise loc exn in
+      exn -> Loc.raise _loc exn in
 
   (* If the PGSQL(dbh) "execute" flag was used, we will actually
    * execute the statement now.  Normally this would never be used, but
@@ -233,7 +233,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
    * has gone wrong in the substitution above.
    *)
   if List.length varmap <> List.length params then
-    Loc.raise loc (
+    Loc.raise _loc (
       Failure ("Mismatch in number of parameters found by database. " ^
 	       "Most likely your statement contains bare $, $number, etc.")
     );
@@ -441,7 +441,7 @@ EXTEND Gram
 	  match List.rev extras with
 	  | [] -> assert false
 	  | query :: flags -> query, flags in
-	pgsql_expand ~flags loc dbh (Camlp4.Struct.Token.Eval.string query)
+	pgsql_expand ~flags _loc dbh (Camlp4.Struct.Token.Eval.string query)
     ]
   ];
 END
