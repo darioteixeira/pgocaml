@@ -1,5 +1,13 @@
+Release 1.6
+===========
+
+* Fixed Makefile: it should now work with any OCaml version.
+* Richard Jones patch converting all references of 'loc' into '_loc'.
+  The former has been deprecated for a while now.
+
+
 Release 1.5
-===============
+===========
 
 * Dario Teixeira's patch adding support for more array types, namely
   bool[], int8[], text[], float4[], and float8[].

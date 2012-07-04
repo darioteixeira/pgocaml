@@ -58,8 +58,7 @@ FOR_P4  := \
 # doesn't necessarily work under Windows
 #
 
-OCAMLVERSION := $(shell ocamlc -v | $(FGREP) "version" | $(SED) -e "s/.*3\.\(..\)\..*/\1/")
-P4_PARAMS := $(shell [ $(OCAMLVERSION) -ge 9 ] && echo -loc loc)
+OCAMLVERSION := $(shell ocamlc -version | $(SED) -e "s/\([0-9]\+\).\([0-9]\+\).*/\1\2/")
 P4_PARAMS += -parser Camlp4MacroParser
 ifeq ($(USE_BATTERIES),yes)
 P4_PARAMS += -DUSE_BATTERIES
