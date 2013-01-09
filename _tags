@@ -1,0 +1,95 @@
+# OASIS_START
+# DO NOT EDIT (digest: f330feba54849342f3fdf77124675f13)
+# Ignore VCS directories, you can use the same kind of rule outside 
+# OASIS_START/STOP if you want to exclude directories that contains 
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library pgocaml
+"src/pgocaml.cmxs": use_pgocaml
+<src/pgocaml.{cma,cmxa}>: oasis_library_pgocaml_byte
+<src/*.ml{,i}>: oasis_library_pgocaml_byte
+<src/pgocaml.{cma,cmxa}>: oasis_library_pgocaml_native
+<src/*.ml{,i}>: oasis_library_pgocaml_native
+# Library pa_pgsql
+"src/pa_pgsql.cmxs": use_pa_pgsql
+"src/pa_pgsql.cma": oasis_library_pa_pgsql_byte
+<src/*.ml{,i}>: oasis_library_pa_pgsql_byte
+"src/pa_pgsql.cma": oasis_library_pa_pgsql_native
+<src/*.ml{,i}>: oasis_library_pa_pgsql_native
+<src/*.ml{,i}>: use_pgocaml
+<src/*.ml{,i}>: pkg_camlp4.macro
+<src/*.ml{,i}>: pkg_camlp4.quotations
+<src/*.ml{,i}>: pkg_camlp4.extend
+<src/*.ml{,i}>: pkg_unix
+<src/*.ml{,i}>: pkg_calendar
+<src/*.ml{,i}>: pkg_csv
+<src/*.ml{,i}>: pkg_pcre
+<src/*.ml{,i}>: pkg_batteries
+# Executable pgocaml_prof
+"utils/pgocaml_prof.byte": oasis_executable_pgocaml_prof_byte
+<utils/*.ml{,i}>: oasis_executable_pgocaml_prof_byte
+"utils/pgocaml_prof.byte": oasis_executable_pgocaml_prof_native
+<utils/*.ml{,i}>: oasis_executable_pgocaml_prof_native
+"utils/pgocaml_prof.byte": use_pgocaml
+"utils/pgocaml_prof.byte": pkg_camlp4.macro
+"utils/pgocaml_prof.byte": pkg_unix
+"utils/pgocaml_prof.byte": pkg_calendar
+"utils/pgocaml_prof.byte": pkg_csv
+"utils/pgocaml_prof.byte": pkg_pcre
+"utils/pgocaml_prof.byte": pkg_batteries
+<utils/*.ml{,i}>: use_pgocaml
+<utils/*.ml{,i}>: pkg_camlp4.macro
+<utils/*.ml{,i}>: pkg_unix
+<utils/*.ml{,i}>: pkg_calendar
+<utils/*.ml{,i}>: pkg_csv
+<utils/*.ml{,i}>: pkg_pcre
+<utils/*.ml{,i}>: pkg_batteries
+# Executable test_pgocaml_lowlevel
+"tests/test_pgocaml_lowlevel.byte": oasis_executable_test_pgocaml_lowlevel_byte
+<tests/*.ml{,i}>: oasis_executable_test_pgocaml_lowlevel_byte
+"tests/test_pgocaml_lowlevel.byte": oasis_executable_test_pgocaml_lowlevel_native
+<tests/*.ml{,i}>: oasis_executable_test_pgocaml_lowlevel_native
+"tests/test_pgocaml_lowlevel.byte": use_pgocaml
+"tests/test_pgocaml_lowlevel.byte": pkg_camlp4.macro
+"tests/test_pgocaml_lowlevel.byte": pkg_unix
+"tests/test_pgocaml_lowlevel.byte": pkg_calendar
+"tests/test_pgocaml_lowlevel.byte": pkg_csv
+"tests/test_pgocaml_lowlevel.byte": pkg_pcre
+"tests/test_pgocaml_lowlevel.byte": pkg_batteries
+# Executable test_pgocaml_highlevel
+"tests/test_pgocaml_highlevel.byte": use_pa_pgsql
+"tests/test_pgocaml_highlevel.byte": use_pgocaml
+"tests/test_pgocaml_highlevel.byte": pkg_camlp4.macro
+"tests/test_pgocaml_highlevel.byte": pkg_camlp4.quotations
+"tests/test_pgocaml_highlevel.byte": pkg_camlp4.extend
+"tests/test_pgocaml_highlevel.byte": pkg_unix
+"tests/test_pgocaml_highlevel.byte": pkg_calendar
+"tests/test_pgocaml_highlevel.byte": pkg_csv
+"tests/test_pgocaml_highlevel.byte": pkg_pcre
+"tests/test_pgocaml_highlevel.byte": pkg_batteries
+<tests/*.ml{,i}>: use_pa_pgsql
+<tests/*.ml{,i}>: use_pgocaml
+<tests/*.ml{,i}>: pkg_camlp4.macro
+<tests/*.ml{,i}>: pkg_camlp4.quotations
+<tests/*.ml{,i}>: pkg_camlp4.extend
+<tests/*.ml{,i}>: pkg_unix
+<tests/*.ml{,i}>: pkg_calendar
+<tests/*.ml{,i}>: pkg_csv
+<tests/*.ml{,i}>: pkg_pcre
+<tests/*.ml{,i}>: pkg_batteries
+# OASIS_STOP
+<src/PGOCaml_generic.ml>: syntax_camlp4o
+<src/pa_pgsql.ml>: syntax_camlp4o
+<utils/pgocaml_prof.ml>: syntax_camlp4o
+<tests/test_pgocaml_lowlevel.ml>: syntax_camlp4o
+<tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
+

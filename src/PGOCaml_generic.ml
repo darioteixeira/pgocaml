@@ -22,10 +22,7 @@
 open Printf
 
 IFDEF USE_BATTERIES THEN
-module String = struct
-  include String
-  include BatString
-end
+module String = BatString
 module Option = BatOption
 ELSE
 open ExtString

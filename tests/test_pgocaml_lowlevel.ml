@@ -22,7 +22,15 @@
 
 open Printf
 
+IFDEF USE_BATTERIES THEN
+module List = struct
+  include List
+  include BatList
+end
+ELSE
 open ExtList
+ENDIF
+
 
 let print_row i row =
   printf "row %d: [%s]\n" i
