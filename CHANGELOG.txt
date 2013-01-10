@@ -1,10 +1,16 @@
+Release 1.7.1
+=============
+
+* Fixed missing dependency in _oasis file.
+
+
 Release 1.7
 ===========
 
-* Build system now uses OASIS
-* Directory tree reorganisation
-* Now using Batteries only
-* Migration to Batteries 2.0
+* Build system now uses OASIS.
+* Directory tree reorganisation.
+* Now using Batteries only.
+* Migration to Batteries 2.0.
 
 
 Release 1.6
