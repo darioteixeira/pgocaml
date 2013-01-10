@@ -16,7 +16,7 @@ Flag "pgprof"
 
 Library "pgocaml"
   Path:			src
-  Modules:		PGOCaml, PGOCaml_generic
+  Modules:		PGOCaml, PGOCaml_generic, PGOCaml_config
   BuildDepends:		unix, calendar, csv, pcre, batteries, camlp4.macro
   ByteOpt+:		-ppopt -DUSE_BATTERIES
   NativeOpt+:		-ppopt -DUSE_BATTERIES
