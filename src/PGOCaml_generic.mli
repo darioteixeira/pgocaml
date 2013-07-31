@@ -145,6 +145,10 @@ val private_data : 'a t -> 'a
   * to the database handle.
   *)
 
+val uuid : 'a t -> string
+(** Retrieve the unique identifier for this connection.
+*)
+
 type pa_pg_data = (string, bool) Hashtbl.t
 (** When using pa_pgsql, database handles have type
   * [PGOCaml.pa_pg_data PGOCaml.t]
@@ -235,6 +239,7 @@ type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
 type hstore = (string * string option) list
+type numeric = string
 
 type bool_array = bool array
 type int32_array = int32 array
@@ -255,6 +260,7 @@ val string_of_int64 : int64 -> string
 val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
+val string_of_numeric : numeric -> string
 val string_of_inet : inet -> string
 val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
@@ -280,6 +286,7 @@ val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string : string -> hstore
+val numeric_of_string : string -> numeric
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz

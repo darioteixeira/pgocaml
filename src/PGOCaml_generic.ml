@@ -152,6 +152,8 @@ val private_data : 'a t -> 'a
   * to the database handle.
   *)
 
+val uuid : 'a t -> string
+
 type pa_pg_data = (string, bool) Hashtbl.t
 (** When using pa_pgsql, database handles have type
   * [PGOCaml.pa_pg_data PGOCaml.t]
@@ -242,6 +244,7 @@ type int16 = int
 type bytea = string (* XXX *)
 type point = float * float
 type hstore = (string * string option) list
+type numeric = string
 
 type bool_array = bool array
 type int32_array = int32 array
@@ -262,6 +265,7 @@ val string_of_int64 : int64 -> string
 val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
+val string_of_numeric : numeric -> string
 val string_of_inet : inet -> string
 val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
@@ -287,6 +291,7 @@ val int64_of_string : string -> int64
 val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string : string -> hstore
+val numeric_of_string : string -> numeric
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz
@@ -1039,6 +1044,8 @@ let private_data { private_data = private_data } =
   | None -> raise Not_found
   | Some private_data -> private_data
 
+let uuid conn = conn.uuid
+
 type pa_pg_data = (string, bool) Hashtbl.t
 
 let ping conn =
@@ -1402,18 +1409,7 @@ let name_of_type ?modifier = function
   | 1184_l -> "timestamptz"  (* TIMESTAMP WITH TIME ZONE *)
   | 1186_l -> "interval"     (* INTERVAL *)
   | 2278_l -> "unit"         (* VOID *)
-  | 1700_l ->
-      (* XXX This is wrong - it will be changed to a fixed precision
-       * numeric type later.
-       *)
-      (match modifier with
-       | None -> "float"
-       | Some modifier when modifier = -1_l -> "float"
-       | Some modifier ->
-	   (* XXX *)
-	   eprintf "numeric modifier = %ld\n%!" modifier;
-	   "float"
-      );
+  | 1700_l -> "string"       (* NUMERIC *)
   | i ->
       (* For unknown types, look at <postgresql/catalog/pg_type.h>. *)
       raise (Error ("PGOCaml: unknown type for OID " ^ Int32.to_string i))
@@ -1424,6 +1420,7 @@ type int16 = int
 type bytea = string
 type point = float * float
 type hstore = (string * string option) list
+type numeric = string
 
 type bool_array = bool array
 type int32_array = int32 array
@@ -1440,6 +1437,8 @@ let string_of_hstore hstore =
       | None -> "NULL"
     in key_str ^ "=>" ^ value_str
   in String.join ", " (List.map string_of_mapping hstore)
+
+let string_of_numeric (x : string) = x
 
 let string_of_inet (addr, mask) =
   let hostmask =
@@ -1560,6 +1559,8 @@ let hstore_of_string str =
       | Some _ -> loop [] stream
       | None   -> [] in
   parse_main (Stream.of_string str)
+
+let numeric_of_string (x : string) = x
 
 let inet_of_string =
   let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
