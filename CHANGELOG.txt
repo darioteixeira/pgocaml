@@ -1,3 +1,14 @@
+Release 2.0
+===========
+
+* Dario Teixeira's patch making PostgreSQL's NUMERIC type be converted
+  to/from OCaml strings.  This change is not backward's compatible,
+  requiring a bump in the major version number (though there seems
+  to be no actual code in the wild relying on the previous behaviour).
+* Dario Teixeira's patch adding function 'uuid', which exposes the
+  unique connection handle identifier.
+
+
 Release 1.7.1
 =============
 

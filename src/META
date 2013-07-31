@@ -1,6 +1,6 @@
 # OASIS_START
-# DO NOT EDIT (digest: 1753dc20af857866adb3b2ea4ceaa82c)
-version = "1.7.1"
+# DO NOT EDIT (digest: ee94c7f0f453c431a881dcf4078f0626)
+version = "2.0"
 description = "OCaml bindings for the PostgreSQL database"
 requires = "unix calendar csv pcre batteries"
 archive(byte) = "pgocaml.cma"
@@ -9,7 +9,7 @@ archive(native) = "pgocaml.cmxa"
 archive(native, plugin) = "pgocaml.cmxs"
 exists_if = "pgocaml.cma"
 package "syntax" (
- version = "1.7.1"
+ version = "2.0"
  description = "Syntax extension for PG'OCaml"
  requires = "pgocaml camlp4"
  archive(syntax, preprocessor) = "pa_pgsql.cma"
