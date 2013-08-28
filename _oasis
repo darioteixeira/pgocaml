@@ -38,7 +38,7 @@ Library "pa_pgsql"
 
 Document "APIDOC"
   Install:		true
-  InstallDir:		$htmldir/api
+  InstallDir:		$htmldir
   Title:		API reference for PG'OCaml
   Type:			ocamlbuild (0.3)
   BuildTools+:		ocamldoc
