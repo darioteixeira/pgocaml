@@ -28,6 +28,7 @@ module type THREAD = sig
   val return : 'a -> 'a t
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   val fail : exn -> 'a t
+  val catch : (unit -> 'a t) -> (exn -> 'a t) -> 'a t
 
   type in_channel
   type out_channel
@@ -81,6 +82,11 @@ val ping : 'a t -> unit monad
   * exception will be thrown.
   *)
 
+val alive : 'a t -> bool monad
+(** This function is a wrapper of [ping] that returns a boolean instead of
+  * raising an exception.
+  *)
+
 (** {6 Transactions} *)
 
 val begin_work : ?isolation:isolation -> ?access:access -> ?deferrable:bool -> 'a t -> unit monad
@@ -91,6 +97,20 @@ val commit : 'a t -> unit monad
 
 val rollback : 'a t -> unit monad
 (** Perform a ROLLBACK operation on the database. *)
+
+val transact :
+  'a t ->
+  ?isolation:isolation ->
+  ?access:access ->
+  ?deferrable:bool ->
+  (unit -> 'b monad) ->
+  'b monad
+(** [transact db ?isolation ?access ?deferrable f] wraps your
+  * function [f] inside a transactional block.
+  * First it calls [begin_work] with [isolation], [access] and [deferrable],
+  * then calls [f] and do [rollback] if [f] raises
+  * an exception, [commit] otherwise.
+  *)
 
 (** {6 Serial column} *)
 
@@ -197,6 +217,11 @@ val close_statement : 'a t -> ?name:string -> unit -> unit monad
 
 val close_portal : 'a t -> ?portal:string -> unit -> unit monad
 (** [close_portal conn ?portal ()] closes a portal and frees up any resources.
+  *)
+
+val inject : 'a t -> ?name:string -> string -> row list monad
+(** [inject conn ?name query] executes the statement [query]
+  * and optionally names it [name].
   *)
 
 type row_description = result_description list

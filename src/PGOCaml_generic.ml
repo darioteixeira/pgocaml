@@ -35,6 +35,7 @@ module type THREAD = sig
   val return : 'a -> 'a t
   val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
   val fail : exn -> 'a t
+  val catch : (unit -> 'a t) -> (exn -> 'a t) -> 'a t
 
   type in_channel
   type out_channel
@@ -88,6 +89,11 @@ val ping : 'a t -> unit monad
   * exception will be thrown.
   *)
 
+val alive : 'a t -> bool monad
+(** This function is a wrapper of [ping] that returns a boolean instead of
+  * raising an exception.
+  *)
+
 (** {6 Transactions} *)
 
 val begin_work : ?isolation:isolation -> ?access:access -> ?deferrable:bool -> 'a t -> unit monad
@@ -98,6 +104,20 @@ val commit : 'a t -> unit monad
 
 val rollback : 'a t -> unit monad
 (** Perform a ROLLBACK operation on the database. *)
+
+val transact :
+  'a t ->
+  ?isolation:isolation ->
+  ?access:access ->
+  ?deferrable:bool ->
+  (unit -> 'b monad) ->
+  'b monad
+(** [transact db ?isolation ?access ?deferrable f] wraps your
+  * function [f] inside a transactional block.
+  * First it calls [begin_work] with [isolation], [access] and [deferrable],
+  * then calls [f] and do [rollback] if [f] raises
+  * an exception, [commit] otherwise.
+  *)
 
 (** {6 Serial column} *)
 
@@ -202,6 +222,11 @@ val close_statement : 'a t -> ?name:string -> unit -> unit monad
 
 val close_portal : 'a t -> ?portal:string -> unit -> unit monad
 (** [close_portal conn ?portal ()] closes a portal and frees up any resources.
+  *)
+
+val inject : 'a t -> ?name:string -> string -> row list monad
+(** [inject conn ?name query] executes the statement [query]
+  * and optionally names it [name].
   *)
 
 type row_description = result_description list
@@ -1066,6 +1091,11 @@ let ping conn =
   in
   profile_op conn.uuid "ping" [] do_ping
 
+let alive conn =
+  catch
+    (fun () -> ping conn >>= fun () -> return true)
+    (fun _ -> return false)
+
 type oid = int32
 
 type param = string option
@@ -1234,6 +1264,19 @@ let rollback conn =
   execute conn ~params:[] () >>= fun _ ->
   return ()
 
+let transact conn ?isolation ?access ?deferrable f =
+  begin_work ?isolation ?access ?deferrable conn >>= fun () ->
+  catch
+    (fun () ->
+       f () >>= fun r ->
+       commit conn >>= fun () ->
+       return r
+    )
+    (fun e ->
+       rollback conn >>= fun () ->
+       fail e
+    )
+
 let serial conn name =
   let query = "select currval ($1)" in
   prepare conn ~query () >>= fun () ->
@@ -1291,6 +1334,12 @@ let close_portal conn ?(portal = "") () =
 			string_of_msg_t msg))
   in
   loop ()
+
+let inject db ?name query =
+  prepare db ~query ?name () >>= fun () ->
+  execute db ?name ~params:[] () >>= fun ret ->
+  close_statement db ?name () >>= fun () ->
+  return ret
 
 type row_description = result_description list
 and result_description = {

@@ -24,6 +24,7 @@ module Simple_thread = struct
   let return x = x
   let (>>=) v f =  f v
   let fail = raise
+  let catch f fexn = try f () with e -> fexn e
 
   type in_channel = Pervasives.in_channel
   type out_channel = Pervasives.out_channel
