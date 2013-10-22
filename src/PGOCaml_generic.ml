@@ -222,7 +222,12 @@ val close_portal : 'a t -> ?portal:string -> unit -> unit monad
 
 val inject : 'a t -> ?name:string -> string -> row list monad
 (** [inject conn ?name query] executes the statement [query]
-  * and optionally names it [name].
+  * and optionally names it [name] and gives the result.
+  *)
+
+val alter : 'a t -> ?name:string -> string -> unit monad
+(** [alter conn ?name query] executes the statement [query]
+  * and optionally names it [name]. Same as inject but ignoring the result.
   *)
 
 type row_description = result_description list
@@ -1336,6 +1341,8 @@ let inject db ?name query =
   execute db ?name ~params:[] () >>= fun ret ->
   close_statement db ?name () >>= fun () ->
   return ret
+
+let alter db ?name query = inject db ?name query >>= fun _ -> return ()
 
 type row_description = result_description list
 and result_description = {
