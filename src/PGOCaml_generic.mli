@@ -103,7 +103,7 @@ val transact :
   ?isolation:isolation ->
   ?access:access ->
   ?deferrable:bool ->
-  (unit -> 'b monad) ->
+  ('a t -> 'b monad) ->
   'b monad
 (** [transact db ?isolation ?access ?deferrable f] wraps your
   * function [f] inside a transactional block.

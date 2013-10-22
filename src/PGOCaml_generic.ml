@@ -106,7 +106,7 @@ val transact :
   ?isolation:isolation ->
   ?access:access ->
   ?deferrable:bool ->
-  (unit -> 'b monad) ->
+  ('a t -> 'b monad) ->
   'b monad
 (** [transact db ?isolation ?access ?deferrable f] wraps your
   * function [f] inside a transactional block.
@@ -1264,7 +1264,7 @@ let transact conn ?isolation ?access ?deferrable f =
   begin_work ?isolation ?access ?deferrable conn >>= fun () ->
   catch
     (fun () ->
-       f () >>= fun r ->
+       f conn >>= fun r ->
        commit conn >>= fun () ->
        return r
     )
