@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 012d22691672c658f81a8174ce6cdb7c) *)
+(* DO NOT EDIT (digest: a5be03ae6948b9e58098783b49f60809) *)
 module OASISGettext = struct
 (* # 21 "src/oasis/OASISGettext.ml" *)
 
@@ -480,105 +480,13 @@ let package_default =
      MyOCamlbuildBase.lib_ocaml =
        [("pgocaml", ["src"]); ("pa_pgsql", ["src"])];
      lib_c = [];
-     flags =
-       [
-          (["oasis_library_pgocaml_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pgocaml_native"; "ocaml"; "link"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pgocaml_byte"; "ocaml"; "ocamldep"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pgocaml_native"; "ocaml"; "ocamldep"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pgocaml_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pgocaml_native"; "ocaml"; "compile"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_native"; "ocaml"; "link"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_byte"; "ocaml"; "ocamldep"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_native"; "ocaml"; "ocamldep"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_library_pa_pgsql_native"; "ocaml"; "compile"; "native"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_executable_pgocaml_prof_byte"; "ocaml"; "link"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_executable_pgocaml_prof_native"; "ocaml"; "link"; "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_executable_pgocaml_prof_byte"; "ocaml"; "ocamldep"; "byte"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_pgocaml_prof_native";
-              "ocaml";
-              "ocamldep";
-              "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          (["oasis_executable_pgocaml_prof_byte"; "ocaml"; "compile"; "byte"],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_pgocaml_prof_native";
-              "ocaml";
-              "compile";
-              "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_byte";
-              "ocaml";
-              "link";
-              "byte"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_native";
-              "ocaml";
-              "link";
-              "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_byte";
-              "ocaml";
-              "ocamldep";
-              "byte"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_native";
-              "ocaml";
-              "ocamldep";
-              "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_byte";
-              "ocaml";
-              "compile";
-              "byte"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])]);
-          ([
-              "oasis_executable_test_pgocaml_lowlevel_native";
-              "ocaml";
-              "compile";
-              "native"
-           ],
-            [(OASISExpr.EBool true, S [A "-ppopt"; A "-DUSE_BATTERIES"])])
-       ];
+     flags = [];
      includes = [("utils", ["src"]); ("tests", ["src"])];
      }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 583 "myocamlbuild.ml"
+# 491 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
