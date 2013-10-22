@@ -87,9 +87,5 @@
 <tests/*.ml{,i}>: pkg_pcre
 <tests/*.ml{,i}>: pkg_batteries
 # OASIS_STOP
-<src/PGOCaml_generic.ml>: syntax_camlp4o
 <src/pa_pgsql.ml>: syntax_camlp4o
-<utils/pgocaml_prof.ml>: syntax_camlp4o
-<tests/test_pgocaml_lowlevel.ml>: syntax_camlp4o
 <tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
-

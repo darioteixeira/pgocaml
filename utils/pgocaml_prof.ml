@@ -21,9 +21,7 @@
  *)
 
 open Printf
-IFDEF USE_BATTERIES THEN
 module Option = BatOption
-ENDIF
 
 let (//) = Filename.concat
 

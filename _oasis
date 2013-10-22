@@ -17,9 +17,7 @@ Flag "pgprof"
 Library "pgocaml"
   Path:			src
   Modules:		PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:		unix, calendar, csv, pcre, batteries, camlp4.macro
-  ByteOpt+:		-ppopt -DUSE_BATTERIES
-  NativeOpt+:		-ppopt -DUSE_BATTERIES
+  BuildDepends:		unix, calendar, csv, pcre, batteries
   FindlibName:		pgocaml
   XMETARequires:	unix, calendar, csv, pcre, batteries
 
@@ -27,9 +25,7 @@ Library "pa_pgsql"
   Path:			src
   Modules:		Pa_pgsql
   CompiledObject:	byte
-  BuildDepends:		pgocaml, camlp4.macro, camlp4.quotations, camlp4.extend
-  ByteOpt+:		-ppopt -DUSE_BATTERIES
-  NativeOpt+:		-ppopt -DUSE_BATTERIES
+  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend
   FindlibParent:	pgocaml
   FindlibName:		syntax
   XMETAType:		syntax
@@ -50,18 +46,14 @@ Executable "pgocaml_prof"
   Install:		false
   Path:			utils
   MainIs:		pgocaml_prof.ml
-  BuildDepends:		pgocaml, camlp4.macro
-  ByteOpt+:		-ppopt -DUSE_BATTERIES
-  NativeOpt+:		-ppopt -DUSE_BATTERIES
+  BuildDepends:		pgocaml
 
 Executable "test_pgocaml_lowlevel"
   Build$:		flag(tests)
   Install:		false
   Path:			tests
   MainIs:		test_pgocaml_lowlevel.ml
-  BuildDepends:		pgocaml, camlp4.macro
-  ByteOpt+:		-ppopt -DUSE_BATTERIES
-  NativeOpt+:		-ppopt -DUSE_BATTERIES
+  BuildDepends:		pgocaml
   
 Executable "test_pgocaml_highlevel"
   Build$:		flag(tests)

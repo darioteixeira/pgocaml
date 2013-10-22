@@ -21,12 +21,8 @@
 
 open Printf
 
-IFDEF USE_BATTERIES THEN
 module String = BatString
 module Option = BatOption
-ELSE
-open ExtString
-ENDIF
 
 open CalendarLib
 

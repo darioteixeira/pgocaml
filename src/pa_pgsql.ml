@@ -20,12 +20,7 @@
 open Camlp4.PreCast
 
 open Printf
-IFDEF USE_BATTERIES THEN
 open Batteries
-ELSE
-open ExtString
-open ExtList
-ENDIF
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -123,7 +118,7 @@ let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
 let pgsql_expand ?(flags = []) _loc dbh query =
   (* Get the option module *)
-  let option_module = IFDEF USE_BATTERIES THEN <:expr<BatOption>> ELSE <:expr<Option>> ENDIF in
+  let option_module = <:expr<BatOption>> in
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
