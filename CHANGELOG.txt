@@ -7,6 +7,10 @@ Release 2.0
   to be no actual code in the wild relying on the previous behaviour).
 * Dario Teixeira's patch adding function 'uuid', which exposes the
   unique connection handle identifier.
+* Jacques-Pascal Deplaix's patches adding 'catch', 'transact', 'alive',
+  'inject', and 'alter' functions.
+* Jacques-Pascal Deplaix's patch removing all traces of ExtLib.
+  (PG'OCaml now uses Batteries exclusively.)
 
 
 Release 1.7.1
