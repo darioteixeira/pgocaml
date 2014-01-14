@@ -1551,7 +1551,7 @@ let string_of_any_array a =
 let string_of_bool_array a = string_of_any_array (Array.map string_of_bool a)
 let string_of_int32_array a = string_of_any_array (Array.map Int32.to_string a)
 let string_of_int64_array a = string_of_any_array (Array.map Int64.to_string a)
-let string_of_string_array a = string_of_any_array a
+let string_of_string_array a = string_of_any_array (Array.map (fun x -> "\"" ^ x ^ "\"") a)
 let string_of_float_array a = string_of_any_array (Array.map string_of_float a)
 
 let string_of_bytea b =
@@ -1712,7 +1712,23 @@ let any_array_of_string str =
   assert (str.[0] = '{');
   assert (str.[n-1] = '}');
   let str = String.sub str 1 (n-2) in
-  let fields = String.nsplit str "," in
+  let buf = Buffer.create 128 in
+  let fields =
+    let f (l, (in_quote, last_is_backslash)) = function
+      | '\\' when not last_is_backslash -> (l, (in_quote, true))
+      | '\"' when in_quote && not last_is_backslash -> (l, (false, false))
+      | '\"' -> (l, (true, false))
+      | ',' when not in_quote ->
+          let l = l @ [Buffer.contents buf] in
+          Buffer.clear buf;
+          (l, (false, false))
+      | x ->
+          Buffer.add_char buf x;
+          (l, (in_quote, false))
+    in
+    fst (String.fold_left f ([], (false, false)) str)
+  in
+  assert (not (String.is_empty (Buffer.contents buf)));
   Array.of_list fields
 
 let bool_array_of_string str = Array.map bool_of_string (any_array_of_string str)
