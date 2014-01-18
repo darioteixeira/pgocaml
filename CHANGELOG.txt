@@ -1,6 +1,9 @@
 Release 2.0
 ===========
 
+* Dario Teixeira and Jacques-Pascal Deplaix: fixing issues with arrays.
+  This requires all array types to change from 'a array to 'a option array,
+  which breaks backward compatibility.
 * Dario Teixeira's patch making PostgreSQL's NUMERIC type be converted
   to/from OCaml strings.  This change is not backward's compatible,
   requiring a bump in the major version number (though there seems

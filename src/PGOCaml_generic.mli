@@ -271,11 +271,11 @@ type point = float * float
 type hstore = (string * string option) list
 type numeric = string
 
-type bool_array = bool array
-type int32_array = int32 array
-type int64_array = int64 array
-type string_array = string array
-type float_array = float array
+type bool_array = bool option array
+type int32_array = int32 option array
+type int64_array = int64 option array
+type string_array = string option array
+type float_array = float option array
 
 (** The following conversion functions are used by pa_pgsql to convert
   * values in and out of the database.
