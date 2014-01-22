@@ -114,50 +114,62 @@ let unravel_type dbh orig_type =
 let rec range a b =
   if a < b then a :: range (a+1) b else [];;
 
+type flags = {
+  key : key;
+  execute : bool;
+  nullable_results : bool;
+  reg_types : (string * string) list;
+}
+
+let defaults : flags ref = ref {
+  key = { host = None; port = None; user = None;
+          password = None; database = None;
+          unix_domain_socket_dir = None };
+  execute = false;
+  nullable_results = false;
+  reg_types = [];
+}
+
+let split_str c str =
+  try
+    let i = String.index str c in
+    String.sub str 0 i, Some (String.sub str (succ i) (String.length str - succ i))
+  with Not_found ->
+    str, None
+
+let parse_flags = List.fold_left (fun f str ->
+  match split_str '=' str with
+  | "execute", None -> { f with execute = not f.execute }
+  | "nullable-results", None -> { f with nullable_results = not f.nullable_results }
+  | s, name when String.starts_with s "type:" ->
+    let tyname = String.sub s 5 (String.length s - 5) in
+    { f with reg_types = match name with
+    | None -> (tyname, tyname) :: f.reg_types
+    | Some "" -> List.remove_assoc tyname f.reg_types
+    | Some name -> (tyname, name) :: f.reg_types
+    }
+  | s, v -> { f with key = match s with
+    | "host" -> { f.key with host = v }
+    | "port" -> { f.key with port = Option.map int_of_string v }
+    | "user" -> { f.key with user = v }
+    | "password" -> { f.key with password = v }
+    | "database" -> { f.key with database = v }
+    | "unix_domain_socket_dir" -> { f.key with unix_domain_socket_dir = v }
+    | _ -> raise (Failure ("Unknown flag: " ^ str))
+    }
+  )
+
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
 let pgsql_expand ?(flags = []) _loc dbh query =
   (* Get the option module *)
   let option_module = <:expr<BatOption>> in
   (* Parse the flags. *)
-  let f_execute = ref false in
-  let f_nullable_results = ref false in
-  let key = ref { host = None; port = None; user = None;
-		  password = None; database = None;
-		  unix_domain_socket_dir = None } in
-  List.iter (
-    function
-    | "execute" -> f_execute := true
-    | "nullable-results" -> f_nullable_results := true
-    | str when String.starts_with str "host=" ->
-	let host = String.sub str 5 (String.length str - 5) in
-	key := { !key with host = Some host }
-    | str when String.starts_with str "port=" ->
-	let port = int_of_string (String.sub str 5 (String.length str - 5)) in
-	key := { !key with port = Some port }
-    | str when String.starts_with str "user=" ->
-	let user = String.sub str 5 (String.length str - 5) in
-	key := { !key with user = Some user }
-    | str when String.starts_with str "password=" ->
-	let password = String.sub str 9 (String.length str - 9) in
-	key := { !key with password = Some password }
-    | str when String.starts_with str "database=" ->
-	let database = String.sub str 9 (String.length str - 9) in
-	key := { !key with database = Some database }
-    | str when String.starts_with str "unix_domain_socket_dir=" ->
-	let socket = String.sub str 23 (String.length str - 23) in
-	key := { !key with unix_domain_socket_dir = Some socket }
-    | str ->
-	Loc.raise _loc (
-	  Failure ("Unknown flag: " ^ str)
-	)
-  ) flags;
-  let f_execute = !f_execute in
-  let f_nullable_results = !f_nullable_results in
-  let key = !key in
+  let f = try parse_flags !defaults flags
+    with exn -> Loc.raise _loc exn in
 
   (* Connect, if necessary, to the database. *)
-  let my_dbh = get_connection key in
+  let my_dbh = get_connection f.key in
 
   (* Split the query into text and variable name parts using Pcre.full_split.
    * eg. "select id from employees where name = $name and salary > $salary"
@@ -221,7 +233,7 @@ let pgsql_expand ?(flags = []) _loc dbh query =
    * some statements need to be executed, particularly CREATE TEMPORARY
    * TABLE.
    *)
-  if f_execute then ignore (PGOCaml.execute my_dbh ~params:[] ());
+  if f.execute then ignore (PGOCaml.execute my_dbh ~params:[] ());
 
   (* Number of params should match length of map, otherwise something
    * has gone wrong in the substitution above.
@@ -359,7 +371,7 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	    let fn = name_of_type_wrapper ~modifier my_dbh field_type in
 	    let fn = fn ^ "_of_string" in
 	    let nullable =
-	      f_nullable_results ||
+	      f.nullable_results ||
 	      match (result.PGOCaml.table, result.PGOCaml.column) with
 	      | Some table, Some column ->
 		  (* Find out whether the column is nullable from the
@@ -436,6 +448,10 @@ EXTEND Gram
 	  | [] -> assert false
 	  | query :: flags -> query, flags in
 	pgsql_expand ~flags _loc dbh (Camlp4.Struct.Token.Eval.string query)
+    | "PGSQL_FLAGS";
+      flags = LIST1 [ x = STRING -> x ] ->
+        defaults := parse_flags !defaults flags;
+        <:expr< () >>
     ]
   ];
 END
