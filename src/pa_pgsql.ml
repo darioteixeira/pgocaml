@@ -25,6 +25,7 @@ open Batteries
 let nullable_name = "nullable"
 let unravel_name = "unravel"
 let hstore_name = "hstore"
+let enum_name = "enum"
 
 (* We need a database connection while compiling.  If people use the
  * override flags like "database=foo", then we may connect to several
@@ -73,6 +74,9 @@ let get_connection key =
       (* Prepare the hstore test. *)
       let hstore_query = "select typname from pg_type where oid = $1" in
       PGOCaml.prepare dbh ~query:hstore_query ~name:hstore_name ();
+
+      let enum_query = "select enumlabel from pg_enum join pg_type on (enumtypid = pg_type.oid) where typname = $1 and typtype = 'e' order by enumsortorder" in
+      PGOCaml.prepare dbh ~query:enum_query ~name:enum_name ();
 
       Hashtbl.add connections key dbh;
       dbh
@@ -443,6 +447,56 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	PGOCaml.bind $expr$ (fun _rows -> PGOCaml.return ())
       >>
 
+open Ast
+let pgsql_enum ?(flags = []) _loc name =
+  (* Parse the flags. *)
+  let f = try parse_flags !defaults flags
+    with exn -> Loc.raise _loc exn in
+
+  (* Connect, if necessary, to the database. *)
+  let my_dbh = get_connection f.key in
+  let name, pre = split_str ':' name in
+  let tyname, enumname = split_str '=' name in
+  let enumname = Option.default tyname enumname in
+
+  let params = [ Some (PGOCaml.string_of_string enumname) ] in
+  let rows = PGOCaml.execute my_dbh ~name:enum_name ~params () in
+
+  let rec foldl f = function
+    | [] -> raise (Failure "foldl")
+    | [x] -> x
+    | x::y::l -> foldl f (f x y :: l) in
+
+  let vals = match rows with
+    | [] -> Loc.raise _loc (Failure ("PGOCaml: enum " ^ enumname ^ " does not exist"))
+    | l -> List.map (function [ Some v ] -> v | _ -> "") l
+  in
+  let consf = Option.map_default (fun p s -> p ^ s) String.capitalize pre in
+  let ident = List.map (fun v -> IdUid (_loc, consf v)) vals in
+
+  let cons = List.map (fun v -> TyId (_loc, v)) ident in
+  let consl = foldl (fun x l -> TyOr (_loc, x, l)) cons in
+
+  let cases f = foldl (fun x l -> McOr (_loc, x, l)) (List.map2 f ident vals) in
+
+  let sotf c n = McArr (_loc, PaId (_loc, c), ExNil _loc, ExStr (_loc, n)) in
+  let sot = cases sotf in
+
+  let tosf c n = McArr (_loc, PaStr (_loc, n), ExNil _loc, ExId (_loc, c)) in
+  let tos = McOr (_loc, cases tosf, McArr (_loc, PaId (_loc, IdLid (_loc, "x")), ExNil _loc,
+    <:expr< raise (PGOCaml.Error ($str:tyname ^ "_of_string: invalid enum value: "$ ^ x)) >> )) in
+
+  defaults := { !defaults with reg_types = (enumname, tyname) :: !defaults.reg_types };
+
+  StSem (_loc,
+    StTyp (_loc, TyDcl (_loc, tyname, [], TySum (_loc, consl), [])),
+  StSem (_loc,
+    StVal (_loc, ReNil, BiEq (_loc, PaId (_loc, IdLid (_loc, "string_of_" ^ tyname)),
+      ExFun (_loc, sot))),
+    StVal (_loc, ReNil, BiEq (_loc, PaId (_loc, IdLid (_loc, tyname ^ "_of_string")),
+      ExFun (_loc, tos)))
+  ))
+
 open Syntax
 
 EXTEND Gram
@@ -458,6 +512,12 @@ EXTEND Gram
       flags = LIST1 [ x = STRING -> x ] ->
         defaults := parse_flags !defaults flags;
         <:expr< () >>
+    ]
+  ];
+  str_item: LEVEL "top" [
+    [ "PGSQL_ENUM"; "("; name = STRING; ")";
+      flags = LIST0 [ x = STRING -> x ] ->
+      pgsql_enum ~flags _loc name
     ]
   ];
 END
