@@ -80,14 +80,17 @@ let get_connection key =
 
 (* Wrapper around [PGOCaml.name_of_type].
 *)
-let name_of_type_wrapper ?modifier dbh oid =
+let name_of_type_wrapper ?modifier dbh reg_types oid =
   try
-    PGOCaml.name_of_type ?modifier oid
+    true, PGOCaml.name_of_type ?modifier oid
   with PGOCaml.Error msg as exc ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
     let rows = PGOCaml.execute dbh ~name:hstore_name ~params () in
     match rows with
-      | [ [ Some "hstore" ] ] -> "hstore"
+      | [ [ Some "hstore" ] ] -> true, "hstore"
+      | [ [ Some t ] ] ->
+        false, (try List.assoc t reg_types
+          with Not_found -> raise (Failure ("PGOCaml: no handler for type " ^ t)))
       | _ -> raise exc
 
 
@@ -96,10 +99,10 @@ let name_of_type_wrapper ?modifier dbh oid =
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh orig_type =
+let unravel_type dbh reg_types orig_type =
   let rec unravel_type_aux ft =
     try
-      name_of_type_wrapper dbh ft
+      name_of_type_wrapper dbh reg_types ft
     with PGOCaml.Error msg as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
@@ -253,17 +256,19 @@ let pgsql_expand ?(flags = []) _loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
 	 let _varname, list, option = List.assoc i varmap in
-	 let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
+	 let bi, fn = unravel_type my_dbh f.reg_types param_type in
+	 let fn = "string_of_" ^ fn in
+	 let fn = if bi then <:expr< PGOCaml.$lid:fn$ >> else <:expr< $lid:fn$ >> in
 	 let head =
 	   match list, option with
 	   | false, false ->
-	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:_varname$) ] >>
+	     <:expr< [ Some ($fn$ $lid:_varname$) ] >>
 	   | false, true ->
-	     <:expr< [ $option_module$.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
+	     <:expr< [ $option_module$.map $fn$ $lid:_varname$ ] >>
 	   | true, false ->
-	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:_varname$ >>
+	     <:expr< List.map (fun x -> Some ($fn$ x)) $lid:_varname$ >>
 	   | true, true ->
-	     <:expr< List.map (fun x -> $option_module$.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
+	     <:expr< List.map (fun x -> $option_module$.map $fn$ x) $lid:_varname$ >> in
 	 <:expr< [ $head$ :: $tail$ ] >>
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
@@ -368,8 +373,9 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	  fun i result ->
 	    let field_type = result.PGOCaml.field_type in
 	    let modifier = result.PGOCaml.modifier in
-	    let fn = name_of_type_wrapper ~modifier my_dbh field_type in
+	    let bi, fn = name_of_type_wrapper ~modifier my_dbh f.reg_types field_type in
 	    let fn = fn ^ "_of_string" in
+	    let fn = if bi then <:expr< PGOCaml.$lid:fn$ >> else <:expr< $lid:fn$ >> in
 	    let nullable =
 	      f.nullable_results ||
 	      match (result.PGOCaml.table, result.PGOCaml.column) with
@@ -390,9 +396,9 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	      | _ -> true (* Assume it could be nullable. *) in
 	    let col = <:expr< $lid:"c" ^ string_of_int i$ >> in
 	    if nullable then
-	      <:expr< $option_module$.map PGOCaml.$lid:fn$ $col$ >>
+	      <:expr< $option_module$.map $fn$ $col$ >>
 	    else
-	      <:expr< PGOCaml.$lid:fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
+	      <:expr< $fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
 	) results in
 
       let convert =
