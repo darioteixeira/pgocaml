@@ -1439,14 +1439,17 @@ let describe_portal conn ?(portal = "") () =
 let name_of_type ?modifier = function
   | 16_l -> "bool"           (* BOOLEAN *)
   | 17_l -> "bytea"          (* BYTEA *)
+  | 19_l -> "string"         (* NAME - treat as string *)
   | 20_l -> "int64"          (* INT8 *)
   | 21_l -> "int16"          (* INT2 *)
   | 23_l -> "int32"          (* INT4 *)
   | 25_l -> "string"         (* TEXT *)
+  | 26_l -> "oid"            (* OID  *)
   | 600_l -> "point"         (* POINT *)
   | 700_l
   | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
-  | 869_l -> "inet"          (* INET *)
+  | 650_l
+  | 869_l -> "inet"          (* CIDR, INET *)
   | 1000_l -> "bool_array"   (* BOOLEAN[] *)
   | 1007_l -> "int32_array"  (* INT4[] *)
   | 1009_l -> "string_array" (* TEXT[] *)
