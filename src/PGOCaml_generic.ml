@@ -272,11 +272,11 @@ type point = float * float
 type hstore = (string * string option) list
 type numeric = string
 
-type bool_array = bool option array
-type int32_array = int32 option array
-type int64_array = int64 option array
-type string_array = string option array
-type float_array = float option array
+type bool_array = bool option list
+type int32_array = int32 option list
+type int64_array = int64 option list
+type string_array = string option list
+type float_array = float option list
 
 (** The following conversion functions are used by pa_pgsql to convert
   * values in and out of the database.
@@ -1474,11 +1474,11 @@ type point = float * float
 type hstore = (string * string option) list
 type numeric = string
 
-type bool_array = bool option array
-type int32_array = int32 option array
-type int64_array = int64 option array
-type string_array = string option array
-type float_array = float option array
+type bool_array = bool option list
+type int32_array = int32 option list
+type int64_array = int64 option list
+type string_array = string option list
+type float_array = float option list
 
 let string_of_hstore hstore =
   let string_of_quoted str = "\"" ^ str ^ "\"" in
@@ -1538,19 +1538,19 @@ let string_of_unit () = ""
 (* NB. It is the responsibility of the caller of this function to
  * properly escape array elements.
  *)
-let string_of_any_array a =
+let string_of_any_array xs =
   let buf = Buffer.create 128 in
   Buffer.add_char buf '{';
-  for i = 0 to Array.length a - 1 do
+  let adder i x =
     if i > 0 then Buffer.add_char buf ',';
-    match a.(i) with
+    match x with
       | Some x ->
         Buffer.add_char buf '"';
         Buffer.add_string buf x;
         Buffer.add_char buf '"'
       | None ->
-        Buffer.add_string buf "NULL"
-  done;
+        Buffer.add_string buf "NULL" in
+  List.iteri adder xs;
   Buffer.add_char buf '}';
   Buffer.contents buf
 
@@ -1567,11 +1567,11 @@ let escape_string str =
   done;
   Buffer.contents buf
 
-let string_of_bool_array a = string_of_any_array (Array.map (option_map string_of_bool) a)
-let string_of_int32_array a = string_of_any_array (Array.map (option_map Int32.to_string) a)
-let string_of_int64_array a = string_of_any_array (Array.map (option_map Int64.to_string) a)
-let string_of_string_array a = string_of_any_array (Array.map (option_map escape_string) a)
-let string_of_float_array a = string_of_any_array (Array.map (option_map string_of_float) a)
+let string_of_bool_array a = string_of_any_array (List.map (option_map string_of_bool) a)
+let string_of_int32_array a = string_of_any_array (List.map (option_map Int32.to_string) a)
+let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to_string) a)
+let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
+let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 
 let string_of_bytea b =
   let len = String.length b in
@@ -1750,13 +1750,13 @@ let any_array_of_string str =
     | x -> Buffer.add_char buf x; (accum, quoted, false) in
   let (accum, _, _) = String.fold_left loop ([], false, false) str in
   let accum = if Buffer.length buf = 0 then accum else add_field accum in
-  Array.of_list (List.rev accum)
+  List.rev accum
 
-let bool_array_of_string str = Array.map (option_map bool_of_string) (any_array_of_string str)
-let int32_array_of_string str = Array.map (option_map Int32.of_string) (any_array_of_string str)
-let int64_array_of_string str = Array.map (option_map Int64.of_string) (any_array_of_string str)
+let bool_array_of_string str = List.map (option_map bool_of_string) (any_array_of_string str)
+let int32_array_of_string str = List.map (option_map Int32.of_string) (any_array_of_string str)
+let int64_array_of_string str = List.map (option_map Int64.of_string) (any_array_of_string str)
 let string_array_of_string str = any_array_of_string str
-let float_array_of_string str = Array.map (option_map float_of_string) (any_array_of_string str)
+let float_array_of_string str = List.map (option_map float_of_string) (any_array_of_string str)
 
 let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'
