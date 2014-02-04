@@ -25,6 +25,7 @@ open Batteries
 let nullable_name = "nullable"
 let unravel_name = "unravel"
 let hstore_name = "hstore"
+let enum_name = "enum"
 
 (* We need a database connection while compiling.  If people use the
  * override flags like "database=foo", then we may connect to several
@@ -74,20 +75,26 @@ let get_connection key =
       let hstore_query = "select typname from pg_type where oid = $1" in
       PGOCaml.prepare dbh ~query:hstore_query ~name:hstore_name ();
 
+      let enum_query = "select enumlabel from pg_enum join pg_type on (enumtypid = pg_type.oid) where typname = $1 and typtype = 'e' order by enumsortorder" in
+      PGOCaml.prepare dbh ~query:enum_query ~name:enum_name ();
+
       Hashtbl.add connections key dbh;
       dbh
 
 
 (* Wrapper around [PGOCaml.name_of_type].
 *)
-let name_of_type_wrapper ?modifier dbh oid =
+let name_of_type_wrapper ?modifier dbh reg_types oid =
   try
-    PGOCaml.name_of_type ?modifier oid
+    true, PGOCaml.name_of_type ?modifier oid
   with PGOCaml.Error msg as exc ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
     let rows = PGOCaml.execute dbh ~name:hstore_name ~params () in
     match rows with
-      | [ [ Some "hstore" ] ] -> "hstore"
+      | [ [ Some "hstore" ] ] -> true, "hstore"
+      | [ [ Some t ] ] ->
+        false, (try List.assoc t reg_types
+          with Not_found -> raise (Failure ("PGOCaml: no handler for type " ^ t)))
       | _ -> raise exc
 
 
@@ -96,10 +103,10 @@ let name_of_type_wrapper ?modifier dbh oid =
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh orig_type =
+let unravel_type dbh reg_types orig_type =
   let rec unravel_type_aux ft =
     try
-      name_of_type_wrapper dbh ft
+      name_of_type_wrapper dbh reg_types ft
     with PGOCaml.Error msg as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
@@ -114,50 +121,62 @@ let unravel_type dbh orig_type =
 let rec range a b =
   if a < b then a :: range (a+1) b else [];;
 
+type flags = {
+  key : key;
+  execute : bool;
+  nullable_results : bool;
+  reg_types : (string * string) list;
+}
+
+let defaults : flags ref = ref {
+  key = { host = None; port = None; user = None;
+          password = None; database = None;
+          unix_domain_socket_dir = None };
+  execute = false;
+  nullable_results = false;
+  reg_types = [];
+}
+
+let split_str c str =
+  try
+    let i = String.index str c in
+    String.sub str 0 i, Some (String.sub str (succ i) (String.length str - succ i))
+  with Not_found ->
+    str, None
+
+let parse_flags = List.fold_left (fun f str ->
+  match split_str '=' str with
+  | "execute", None -> { f with execute = not f.execute }
+  | "nullable-results", None -> { f with nullable_results = not f.nullable_results }
+  | s, name when String.starts_with s "type:" ->
+    let tyname = String.sub s 5 (String.length s - 5) in
+    { f with reg_types = match name with
+    | None -> (tyname, tyname) :: f.reg_types
+    | Some "" -> List.remove_assoc tyname f.reg_types
+    | Some name -> (tyname, name) :: f.reg_types
+    }
+  | s, v -> { f with key = match s with
+    | "host" -> { f.key with host = v }
+    | "port" -> { f.key with port = Option.map int_of_string v }
+    | "user" -> { f.key with user = v }
+    | "password" -> { f.key with password = v }
+    | "database" -> { f.key with database = v }
+    | "unix_domain_socket_dir" -> { f.key with unix_domain_socket_dir = v }
+    | _ -> raise (Failure ("Unknown flag: " ^ str))
+    }
+  )
+
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
 let pgsql_expand ?(flags = []) _loc dbh query =
   (* Get the option module *)
   let option_module = <:expr<BatOption>> in
   (* Parse the flags. *)
-  let f_execute = ref false in
-  let f_nullable_results = ref false in
-  let key = ref { host = None; port = None; user = None;
-		  password = None; database = None;
-		  unix_domain_socket_dir = None } in
-  List.iter (
-    function
-    | "execute" -> f_execute := true
-    | "nullable-results" -> f_nullable_results := true
-    | str when String.starts_with str "host=" ->
-	let host = String.sub str 5 (String.length str - 5) in
-	key := { !key with host = Some host }
-    | str when String.starts_with str "port=" ->
-	let port = int_of_string (String.sub str 5 (String.length str - 5)) in
-	key := { !key with port = Some port }
-    | str when String.starts_with str "user=" ->
-	let user = String.sub str 5 (String.length str - 5) in
-	key := { !key with user = Some user }
-    | str when String.starts_with str "password=" ->
-	let password = String.sub str 9 (String.length str - 9) in
-	key := { !key with password = Some password }
-    | str when String.starts_with str "database=" ->
-	let database = String.sub str 9 (String.length str - 9) in
-	key := { !key with database = Some database }
-    | str when String.starts_with str "unix_domain_socket_dir=" ->
-	let socket = String.sub str 23 (String.length str - 23) in
-	key := { !key with unix_domain_socket_dir = Some socket }
-    | str ->
-	Loc.raise _loc (
-	  Failure ("Unknown flag: " ^ str)
-	)
-  ) flags;
-  let f_execute = !f_execute in
-  let f_nullable_results = !f_nullable_results in
-  let key = !key in
+  let f = try parse_flags !defaults flags
+    with exn -> Loc.raise _loc exn in
 
   (* Connect, if necessary, to the database. *)
-  let my_dbh = get_connection key in
+  let my_dbh = get_connection f.key in
 
   (* Split the query into text and variable name parts using Pcre.full_split.
    * eg. "select id from employees where name = $name and salary > $salary"
@@ -221,7 +240,7 @@ let pgsql_expand ?(flags = []) _loc dbh query =
    * some statements need to be executed, particularly CREATE TEMPORARY
    * TABLE.
    *)
-  if f_execute then ignore (PGOCaml.execute my_dbh ~params:[] ());
+  if f.execute then ignore (PGOCaml.execute my_dbh ~params:[] ());
 
   (* Number of params should match length of map, otherwise something
    * has gone wrong in the substitution above.
@@ -241,17 +260,19 @@ let pgsql_expand ?(flags = []) _loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
 	 let _varname, list, option = List.assoc i varmap in
-	 let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
+	 let bi, fn = unravel_type my_dbh f.reg_types param_type in
+	 let fn = "string_of_" ^ fn in
+	 let fn = if bi then <:expr< PGOCaml.$lid:fn$ >> else <:expr< $lid:fn$ >> in
 	 let head =
 	   match list, option with
 	   | false, false ->
-	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:_varname$) ] >>
+	     <:expr< [ Some ($fn$ $lid:_varname$) ] >>
 	   | false, true ->
-	     <:expr< [ $option_module$.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
+	     <:expr< [ $option_module$.map $fn$ $lid:_varname$ ] >>
 	   | true, false ->
-	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:_varname$ >>
+	     <:expr< List.map (fun x -> Some ($fn$ x)) $lid:_varname$ >>
 	   | true, true ->
-	     <:expr< List.map (fun x -> $option_module$.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
+	     <:expr< List.map (fun x -> $option_module$.map $fn$ x) $lid:_varname$ >> in
 	 <:expr< [ $head$ :: $tail$ ] >>
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
@@ -356,10 +377,11 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	  fun i result ->
 	    let field_type = result.PGOCaml.field_type in
 	    let modifier = result.PGOCaml.modifier in
-	    let fn = name_of_type_wrapper ~modifier my_dbh field_type in
+	    let bi, fn = name_of_type_wrapper ~modifier my_dbh f.reg_types field_type in
 	    let fn = fn ^ "_of_string" in
+	    let fn = if bi then <:expr< PGOCaml.$lid:fn$ >> else <:expr< $lid:fn$ >> in
 	    let nullable =
-	      f_nullable_results ||
+	      f.nullable_results ||
 	      match (result.PGOCaml.table, result.PGOCaml.column) with
 	      | Some table, Some column ->
 		  (* Find out whether the column is nullable from the
@@ -378,9 +400,9 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	      | _ -> true (* Assume it could be nullable. *) in
 	    let col = <:expr< $lid:"c" ^ string_of_int i$ >> in
 	    if nullable then
-	      <:expr< $option_module$.map PGOCaml.$lid:fn$ $col$ >>
+	      <:expr< $option_module$.map $fn$ $col$ >>
 	    else
-	      <:expr< PGOCaml.$lid:fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
+	      <:expr< $fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
 	) results in
 
       let convert =
@@ -425,6 +447,56 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	PGOCaml.bind $expr$ (fun _rows -> PGOCaml.return ())
       >>
 
+open Ast
+let pgsql_enum ?(flags = []) _loc name =
+  (* Parse the flags. *)
+  let f = try parse_flags !defaults flags
+    with exn -> Loc.raise _loc exn in
+
+  (* Connect, if necessary, to the database. *)
+  let my_dbh = get_connection f.key in
+  let name, pre = split_str ':' name in
+  let tyname, enumname = split_str '=' name in
+  let enumname = Option.default tyname enumname in
+
+  let params = [ Some (PGOCaml.string_of_string enumname) ] in
+  let rows = PGOCaml.execute my_dbh ~name:enum_name ~params () in
+
+  let rec foldl f = function
+    | [] -> raise (Failure "foldl")
+    | [x] -> x
+    | x::y::l -> foldl f (f x y :: l) in
+
+  let vals = match rows with
+    | [] -> Loc.raise _loc (Failure ("PGOCaml: enum " ^ enumname ^ " does not exist"))
+    | l -> List.map (function [ Some v ] -> v | _ -> "") l
+  in
+  let consf = Option.map_default (fun p s -> p ^ s) String.capitalize pre in
+  let ident = List.map (fun v -> IdUid (_loc, consf v)) vals in
+
+  let cons = List.map (fun v -> TyId (_loc, v)) ident in
+  let consl = foldl (fun x l -> TyOr (_loc, x, l)) cons in
+
+  let cases f = foldl (fun x l -> McOr (_loc, x, l)) (List.map2 f ident vals) in
+
+  let sotf c n = McArr (_loc, PaId (_loc, c), ExNil _loc, ExStr (_loc, n)) in
+  let sot = cases sotf in
+
+  let tosf c n = McArr (_loc, PaStr (_loc, n), ExNil _loc, ExId (_loc, c)) in
+  let tos = McOr (_loc, cases tosf, McArr (_loc, PaId (_loc, IdLid (_loc, "x")), ExNil _loc,
+    <:expr< raise (PGOCaml.Error ($str:tyname ^ "_of_string: invalid enum value: "$ ^ x)) >> )) in
+
+  defaults := { !defaults with reg_types = (enumname, tyname) :: !defaults.reg_types };
+
+  StSem (_loc,
+    StTyp (_loc, TyDcl (_loc, tyname, [], TySum (_loc, consl), [])),
+  StSem (_loc,
+    StVal (_loc, ReNil, BiEq (_loc, PaId (_loc, IdLid (_loc, "string_of_" ^ tyname)),
+      ExFun (_loc, sot))),
+    StVal (_loc, ReNil, BiEq (_loc, PaId (_loc, IdLid (_loc, tyname ^ "_of_string")),
+      ExFun (_loc, tos)))
+  ))
+
 open Syntax
 
 EXTEND Gram
@@ -436,6 +508,16 @@ EXTEND Gram
 	  | [] -> assert false
 	  | query :: flags -> query, flags in
 	pgsql_expand ~flags _loc dbh (Camlp4.Struct.Token.Eval.string query)
+    | "PGSQL_FLAGS";
+      flags = LIST1 [ x = STRING -> x ] ->
+        defaults := parse_flags !defaults flags;
+        <:expr< () >>
+    ]
+  ];
+  str_item: LEVEL "top" [
+    [ "PGSQL_ENUM"; "("; name = STRING; ")";
+      flags = LIST0 [ x = STRING -> x ] ->
+      pgsql_enum ~flags _loc name
     ]
   ];
 END
