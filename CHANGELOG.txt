@@ -1,6 +1,9 @@
 Release 2.0
 ===========
 
+* Dario Teixeira: removed dependency on Batteries.  Auxilliary functions
+  which used to be provided by Batteries are located in the newly created
+  PGOCaml_aux module.
 * Dario Teixeira and Jacques-Pascal Deplaix: fixing issues with arrays.
   This requires all array types to change from 'a array to 'a option array,
   which breaks backward compatibility.

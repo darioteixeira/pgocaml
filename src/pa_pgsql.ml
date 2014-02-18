@@ -18,9 +18,8 @@
  *)
 
 open Camlp4.PreCast
-
+open PGOCaml_aux
 open Printf
-open Batteries
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -117,8 +116,6 @@ let rec range a b =
 let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
 
 let pgsql_expand ?(flags = []) _loc dbh query =
-  (* Get the option module *)
-  let option_module = <:expr<BatOption>> in
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
@@ -247,11 +244,11 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	   | false, false ->
 	     <:expr< [ Some (PGOCaml.$lid:fn$ $lid:_varname$) ] >>
 	   | false, true ->
-	     <:expr< [ $option_module$.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
+	     <:expr< [ PGOCaml_aux.Option.map PGOCaml.$lid:fn$ $lid:_varname$ ] >>
 	   | true, false ->
 	     <:expr< List.map (fun x -> Some (PGOCaml.$lid:fn$ x)) $lid:_varname$ >>
 	   | true, true ->
-	     <:expr< List.map (fun x -> $option_module$.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
+	     <:expr< List.map (fun x -> PGOCaml_aux.Option.map PGOCaml.$lid:fn$ x) $lid:_varname$ >> in
 	 <:expr< [ $head$ :: $tail$ ] >>
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
@@ -378,9 +375,9 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	      | _ -> true (* Assume it could be nullable. *) in
 	    let col = <:expr< $lid:"c" ^ string_of_int i$ >> in
 	    if nullable then
-	      <:expr< $option_module$.map PGOCaml.$lid:fn$ $col$ >>
+	      <:expr< PGOCaml_aux.Option.map PGOCaml.$lid:fn$ $col$ >>
 	    else
-	      <:expr< PGOCaml.$lid:fn$ (try $option_module$.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
+	      <:expr< PGOCaml.$lid:fn$ (try PGOCaml_aux.Option.get $col$ with _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"") >>
 	) results in
 
       let convert =

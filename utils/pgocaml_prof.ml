@@ -20,8 +20,8 @@
  * Boston, MA 02111-1307, USA.
  *)
 
+open PGOCaml_aux
 open Printf
-module Option = BatOption
 
 let (//) = Filename.concat
 

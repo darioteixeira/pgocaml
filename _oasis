@@ -16,10 +16,10 @@ Flag "pgprof"
 
 Library "pgocaml"
   Path:			src
-  Modules:		PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:		unix, calendar, csv, pcre, batteries
+  Modules:		PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
+  BuildDepends:		unix, calendar, csv, pcre
   FindlibName:		pgocaml
-  XMETARequires:	unix, calendar, csv, pcre, batteries
+  XMETARequires:	unix, calendar, csv, pcre
 
 Library "pa_pgsql"
   Path:			src

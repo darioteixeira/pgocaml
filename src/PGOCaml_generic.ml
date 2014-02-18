@@ -19,12 +19,9 @@
  * Boston, MA 02111-1307, USA.
  *)
 
-open Printf
-
-module String = BatString
-module Option = BatOption
-
+open PGOCaml_aux
 open CalendarLib
+open Printf
 
 module type THREAD = sig
   type 'a t

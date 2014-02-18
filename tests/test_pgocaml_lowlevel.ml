@@ -22,12 +22,6 @@
 
 open Printf
 
-module List = struct
-  include List
-  include BatList
-end
-
-
 let print_row i row =
   printf "row %d: [%s]\n" i
     (String.concat "; "
