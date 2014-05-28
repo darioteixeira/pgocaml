@@ -1,9 +1,9 @@
 Release 2.0
 ===========
 
-* Dario Teixeira: removed dependency on Batteries.  Auxilliary functions
-  which used to be provided by Batteries are located in the newly created
-  PGOCaml_aux module.
+* Dario Teixeira & Jacques-Pascal Deplaix: remove dependencies on ExtLib
+  or Batteries.  Auxilliary functions which used to be provided by Batteries
+  are located in the newly created PGOCaml_aux module.
 * Dario Teixeira and Jacques-Pascal Deplaix: fixing issues with arrays.
   This requires all array types to change from 'a array to 'a option array,
   which breaks backward compatibility.
@@ -15,8 +15,6 @@ Release 2.0
   unique connection handle identifier.
 * Jacques-Pascal Deplaix's patches adding 'catch', 'transact', 'alive',
   'inject', and 'alter' functions.
-* Jacques-Pascal Deplaix's patch removing all traces of ExtLib.
-  (PG'OCaml now uses Batteries exclusively.)
 
 
 Release 1.7.1
