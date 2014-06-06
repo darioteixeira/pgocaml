@@ -1,3 +1,10 @@
+Release 2.1
+===========
+
+* Dario Teixeira: add List.iteri and List.mapi for compatibility with
+  older versions of OCaml.
+
+
 Release 2.0
 ===========
 
