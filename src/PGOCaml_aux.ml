@@ -50,3 +50,23 @@ struct
     | None -> None
 end
 
+module List = 
+struct
+
+ include List
+
+ let iteri f l =
+   let rec loop i = function
+      | [] -> ()
+      | hd :: tl -> f i hd; loop (succ i) tl
+   in
+   loop 0 l
+   
+let mapi f l =
+   let rec loop acc i = function
+      | [] -> acc
+      | hd :: tl -> loop (acc @ [ f 0 hd ]) (succ i) tl
+   in
+   loop [] 0 l
+end
+
