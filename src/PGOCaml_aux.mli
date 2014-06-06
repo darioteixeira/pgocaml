@@ -15,3 +15,9 @@ module Option :
     val map : ('a -> 'b) -> 'a option -> 'b option
   end
 
+module List :
+  sig
+    include module type of List
+    val iteri : (int -> 'a -> unit) -> 'a list -> unit
+    val mapi : (int -> 'a -> 'b) -> 'a list -> 'b list
+  end
