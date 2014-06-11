@@ -832,7 +832,9 @@ let pg_error ?conn fields =
 
 type 'a retexn = Ret of 'a | Exn of exn
 
-(* profile_op : string -> string -> string list -> (unit -> 'a) -> 'a *)
+(* profile_op :
+ *   string -> string -> string list -> (unit -> 'a Thread.t) -> 'a Thread.t
+ *)
 let profile_op uuid op detail f =
   let chan =
     try
@@ -847,7 +849,9 @@ let profile_op uuid op detail f =
   | None -> f ()			(* No profiling - just run it. *)
   | Some chan ->			(* Profiling. *)
       let start_time = Unix.gettimeofday () in
-      let ret = try Ret (f ()) with exn -> Exn exn in
+      catch
+        (fun () -> f () >>= fun x -> return (Ret x))
+        (fun exn -> return (Exn exn)) >>= fun ret ->
       let end_time = Unix.gettimeofday () in
 
       let elapsed_time_ms = int_of_float (1000. *. (end_time -. start_time)) in
@@ -871,8 +875,8 @@ let profile_op uuid op detail f =
 
       (* Return result or re-raise the exception. *)
       match ret with
-      | Ret r -> r
-      | Exn exn -> raise exn
+      | Ret r -> return r
+      | Exn exn -> fail exn
 
 (*----- Connection. -----*)
 
