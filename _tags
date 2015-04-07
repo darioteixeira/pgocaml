@@ -61,3 +61,5 @@
 # OASIS_STOP
 <src/pa_pgsql.ml>: syntax_camlp4o
 <tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
+
+true: safe_string
