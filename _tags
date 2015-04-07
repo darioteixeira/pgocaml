@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 6fe871a44e8ea870562ea73febf14757)
+# DO NOT EDIT (digest: 2195434e610096d70cae76da7908ab60)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -18,6 +18,7 @@ true: annot, bin_annot
 "src/pgocaml.cmxs": use_pgocaml
 # Library pa_pgsql
 "src/pa_pgsql.cmxs": use_pa_pgsql
+<src/*.ml{,i,y}>: pkg_bytes
 <src/*.ml{,i,y}>: pkg_calendar
 <src/*.ml{,i,y}>: pkg_camlp4.extend
 <src/*.ml{,i,y}>: pkg_camlp4.quotations
@@ -26,23 +27,27 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: pkg_unix
 <src/*.ml{,i,y}>: use_pgocaml
 # Executable pgocaml_prof
+"utils/pgocaml_prof.byte": pkg_bytes
 "utils/pgocaml_prof.byte": pkg_calendar
 "utils/pgocaml_prof.byte": pkg_csv
 "utils/pgocaml_prof.byte": pkg_pcre
 "utils/pgocaml_prof.byte": pkg_unix
 "utils/pgocaml_prof.byte": use_pgocaml
+<utils/*.ml{,i,y}>: pkg_bytes
 <utils/*.ml{,i,y}>: pkg_calendar
 <utils/*.ml{,i,y}>: pkg_csv
 <utils/*.ml{,i,y}>: pkg_pcre
 <utils/*.ml{,i,y}>: pkg_unix
 <utils/*.ml{,i,y}>: use_pgocaml
 # Executable test_pgocaml_lowlevel
+"tests/test_pgocaml_lowlevel.byte": pkg_bytes
 "tests/test_pgocaml_lowlevel.byte": pkg_calendar
 "tests/test_pgocaml_lowlevel.byte": pkg_csv
 "tests/test_pgocaml_lowlevel.byte": pkg_pcre
 "tests/test_pgocaml_lowlevel.byte": pkg_unix
 "tests/test_pgocaml_lowlevel.byte": use_pgocaml
 # Executable test_pgocaml_highlevel
+"tests/test_pgocaml_highlevel.byte": pkg_bytes
 "tests/test_pgocaml_highlevel.byte": pkg_calendar
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.extend
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.quotations
@@ -51,6 +56,7 @@ true: annot, bin_annot
 "tests/test_pgocaml_highlevel.byte": pkg_unix
 "tests/test_pgocaml_highlevel.byte": use_pa_pgsql
 "tests/test_pgocaml_highlevel.byte": use_pgocaml
+<tests/*.ml{,i,y}>: pkg_bytes
 <tests/*.ml{,i,y}>: pkg_calendar
 <tests/*.ml{,i,y}>: pkg_camlp4.extend
 <tests/*.ml{,i,y}>: pkg_camlp4.quotations
