@@ -459,7 +459,7 @@ let receive_message { ichan = ichan; chan = chan } =
   if len > !max_message_length then (
     (* Skip the message so we stay in synch with the stream. *)
     let bufsize = 65_536 in
-    let buf = String.create bufsize in
+    let buf = Bytes.create bufsize in
     let rec loop n =
       if n > 0 then begin
         let m = min n bufsize in
@@ -475,7 +475,7 @@ let receive_message { ichan = ichan; chan = chan } =
   ) else (
 
     (* Read the binary message content. *)
-    let msg = String.create len in
+    let msg = Bytes.create len in
     really_input ichan msg 0 len >>= fun () ->
     return (typ, Bytes.to_string msg)
   )
