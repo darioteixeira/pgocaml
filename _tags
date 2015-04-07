@@ -1,8 +1,9 @@
 # OASIS_START
-# DO NOT EDIT (digest: 3857d58a649db5119e8a9082760b68c2)
+# DO NOT EDIT (digest: 6fe871a44e8ea870562ea73febf14757)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
+true: annot, bin_annot
 <**/.svn>: -traverse
 <**/.svn>: not_hygienic
 ".bzr": -traverse
@@ -17,24 +18,24 @@
 "src/pgocaml.cmxs": use_pgocaml
 # Library pa_pgsql
 "src/pa_pgsql.cmxs": use_pa_pgsql
-<src/*.ml{,i}>: pkg_calendar
-<src/*.ml{,i}>: pkg_camlp4.extend
-<src/*.ml{,i}>: pkg_camlp4.quotations
-<src/*.ml{,i}>: pkg_csv
-<src/*.ml{,i}>: pkg_pcre
-<src/*.ml{,i}>: pkg_unix
-<src/*.ml{,i}>: use_pgocaml
+<src/*.ml{,i,y}>: pkg_calendar
+<src/*.ml{,i,y}>: pkg_camlp4.extend
+<src/*.ml{,i,y}>: pkg_camlp4.quotations
+<src/*.ml{,i,y}>: pkg_csv
+<src/*.ml{,i,y}>: pkg_pcre
+<src/*.ml{,i,y}>: pkg_unix
+<src/*.ml{,i,y}>: use_pgocaml
 # Executable pgocaml_prof
 "utils/pgocaml_prof.byte": pkg_calendar
 "utils/pgocaml_prof.byte": pkg_csv
 "utils/pgocaml_prof.byte": pkg_pcre
 "utils/pgocaml_prof.byte": pkg_unix
 "utils/pgocaml_prof.byte": use_pgocaml
-<utils/*.ml{,i}>: pkg_calendar
-<utils/*.ml{,i}>: pkg_csv
-<utils/*.ml{,i}>: pkg_pcre
-<utils/*.ml{,i}>: pkg_unix
-<utils/*.ml{,i}>: use_pgocaml
+<utils/*.ml{,i,y}>: pkg_calendar
+<utils/*.ml{,i,y}>: pkg_csv
+<utils/*.ml{,i,y}>: pkg_pcre
+<utils/*.ml{,i,y}>: pkg_unix
+<utils/*.ml{,i,y}>: use_pgocaml
 # Executable test_pgocaml_lowlevel
 "tests/test_pgocaml_lowlevel.byte": pkg_calendar
 "tests/test_pgocaml_lowlevel.byte": pkg_csv
@@ -50,14 +51,14 @@
 "tests/test_pgocaml_highlevel.byte": pkg_unix
 "tests/test_pgocaml_highlevel.byte": use_pa_pgsql
 "tests/test_pgocaml_highlevel.byte": use_pgocaml
-<tests/*.ml{,i}>: pkg_calendar
-<tests/*.ml{,i}>: pkg_camlp4.extend
-<tests/*.ml{,i}>: pkg_camlp4.quotations
-<tests/*.ml{,i}>: pkg_csv
-<tests/*.ml{,i}>: pkg_pcre
-<tests/*.ml{,i}>: pkg_unix
-<tests/*.ml{,i}>: use_pa_pgsql
-<tests/*.ml{,i}>: use_pgocaml
+<tests/*.ml{,i,y}>: pkg_calendar
+<tests/*.ml{,i,y}>: pkg_camlp4.extend
+<tests/*.ml{,i,y}>: pkg_camlp4.quotations
+<tests/*.ml{,i,y}>: pkg_csv
+<tests/*.ml{,i,y}>: pkg_pcre
+<tests/*.ml{,i,y}>: pkg_unix
+<tests/*.ml{,i,y}>: use_pa_pgsql
+<tests/*.ml{,i,y}>: use_pgocaml
 # OASIS_STOP
 <src/pa_pgsql.ml>: syntax_camlp4o
 <tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
