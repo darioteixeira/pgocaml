@@ -1,12 +1,12 @@
-OASISFormat:		0.3
+OASISFormat:		0.4
 Name:			PG'OCaml
-Version:		2.1
+Version:		2.2
 Synopsis:		OCaml bindings for the PostgreSQL database
 Authors:		Richard W. M. Jones et al.
 Maintainers:		Dario Teixeira
 License:		LGPL-2.0 with OCaml linking exception
 LicenseFile:		LICENSE.txt
-Plugins:		META (0.3), DevFiles (0.3)
+Plugins:		META (0.4), DevFiles (0.4)
 BuildTools:		ocamlbuild, make, camlp4
 PreBuildCommand:	$make config
 
@@ -36,7 +36,7 @@ Document "APIDOC"
   Install:		true
   InstallDir:		$htmldir
   Title:		API reference for PG'OCaml
-  Type:			ocamlbuild (0.3)
+  Type:			ocamlbuild (0.4)
   BuildTools+:		ocamldoc
   XOCamlbuildPath:	src
   XOCamlbuildLibraries:	pgocaml

@@ -1,3 +1,11 @@
+Release 2.2
+===========
+
+* Jacques-Pascal Deplaix: Use Bytes instead of String when mutation
+  is required.
+* Jacques-Pascal Deplaix: fix bug in AuthenticationCryptPassword.
+
+
 Release 2.1
 ===========
 
