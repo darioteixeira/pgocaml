@@ -20,11 +20,9 @@ struct
   let join = concat
 
   let implode xs =
-    let res = create (List.length xs) in
-      let rec aux i = function
-        | [] -> res
-        | hd :: tl -> res.[i] <- hd; aux (i + 1) tl in
-      aux 0 xs
+    let buf = Buffer.create (List.length xs) in
+    List.iter (Buffer.add_char buf) xs;
+    Buffer.contents buf
 
   let fold_left f init str =
     let len = length str in
@@ -33,6 +31,14 @@ struct
       then accum
       else loop (i + 1) (f accum str.[i]) in
     loop 0 init
+
+  (* Only available in the standard library since OCaml 4.02 *)
+  let init n f =
+    let s = Bytes.create n in
+    for i = 0 to n - 1 do
+      Bytes.unsafe_set s i (f i)
+    done;
+    Bytes.to_string s
 end
 
 module Option =
@@ -66,4 +72,3 @@ struct
       | hd :: tl -> let hd' = f i hd in hd' :: loop (i+1) tl in
     loop 0 xs
 end
-

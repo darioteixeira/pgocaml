@@ -17,9 +17,9 @@ Flag "pgprof"
 Library "pgocaml"
   Path:			src
   Modules:		PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:		unix, calendar, csv, pcre
+  BuildDepends:		unix, calendar, csv, pcre, bytes
   FindlibName:		pgocaml
-  XMETARequires:	unix, calendar, csv, pcre
+  XMETARequires:	unix, calendar, csv, pcre, bytes
 
 Library "pa_pgsql"
   Path:			src
