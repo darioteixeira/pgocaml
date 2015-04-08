@@ -31,6 +31,14 @@ struct
       then accum
       else loop (i + 1) (f accum str.[i]) in
     loop 0 init
+
+  (* Only available in the standard library since OCaml 4.02 *)
+  let init n f =
+    let s = Bytes.create n in
+    for i = 0 to n - 1 do
+      Bytes.unsafe_set s i (f i)
+    done;
+    Bytes.to_string s
 end
 
 module Option =
