@@ -633,13 +633,7 @@ let parse_backend_message (typ, msg) =
     in
     loop ()
   in
-  let get_n_bytes n =
-    let buf = Buffer.create n in
-    for _ = 0 to n-1 do
-      Buffer.add_char buf (get_char "get_n_bytes")
-    done;
-    Buffer.contents buf
-  in
+  let get_n_bytes n = String.init n (fun _ -> get_char "get_n_bytes") in
   let get_char () = get_char "get_char" in
   (*let get_byte () = get_byte "get_byte" in*)
 
@@ -652,17 +646,11 @@ let parse_backend_message (typ, msg) =
 	 | 2l -> AuthenticationKerberosV5
 	 | 3l -> AuthenticationCleartextPassword
 	 | 4l ->
-	     let salt = Buffer.create 2 in
-	     for _ = 0 to 2 do
-	       Buffer.add_char salt (get_char ())
-	     done;
-	     AuthenticationCryptPassword (Buffer.contents salt)
+	     let salt = String.init 2 (fun _ -> get_char ()) in
+	     AuthenticationCryptPassword salt
 	 | 5l ->
-	     let salt = Buffer.create 4 in
-	     for _ = 0 to 3 do
-	       Buffer.add_char salt (get_char ())
-	     done;
-	     AuthenticationMD5Password (Buffer.contents salt)
+	     let salt = String.init 4 (fun _ -> get_char ()) in
+	     AuthenticationMD5Password salt
 	 | 6l -> AuthenticationSCMCredential
 	 | _ -> UnknownMessage (typ, msg)
 	);
