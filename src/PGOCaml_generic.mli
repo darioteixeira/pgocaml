@@ -39,7 +39,7 @@ module type THREAD = sig
   val flush : out_channel -> unit t
   val input_char : in_channel -> char t
   val input_binary_int : in_channel -> int t
-  val really_input : in_channel -> bytes -> int -> int -> unit t
+  val really_input : in_channel -> Bytes.t -> int -> int -> unit t
   val close_in : in_channel -> unit t
 end
 
