@@ -6,6 +6,7 @@ module String :
     val join : string -> string list -> string
     val implode : char list -> string
     val fold_left : ('a -> char -> 'a) -> 'a -> string -> 'a
+    val init: int -> (int -> char) -> string
   end
 
 module Option :
