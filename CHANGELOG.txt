@@ -1,3 +1,9 @@
+Dev version
+===========
+
+* Patch by Evgenii Lepikhin adding support for types UUID and JSONB.
+
+
 Release 2.2
 ===========
 
