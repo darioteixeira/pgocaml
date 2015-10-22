@@ -1,0 +1,24 @@
+opam-version: "1.2"
+name: "pgocaml"
+version: "2.2+dev"
+maintainer: "Dario Teixeira <dario.teixeira@nleyten.com>"
+authors: ["Richard W.M. Jones <rich@annexia.org>"]
+homepage: "http://pgocaml.forge.ocamlcore.org/"
+bug-reports: "https://github.com/darioteixeira/pgocaml/issues"
+dev-repo: "https://github.com/darioteixeira/pgocaml.git"
+license: "LGPL-2.0 with OCaml linking exception"
+build: [
+    ["./configure" "--prefix" prefix "--docdir" "%{doc}%/pgocaml"]
+    [make]
+    [make "doc"]
+]
+install: [[make "install"]]
+remove: [["ocamlfind" "remove" "pgocaml"]]
+depends: [
+    "ocamlfind"
+    "base-bytes"
+    "pcre"
+    "calendar"
+    "csv"
+    "camlp4"
+]
