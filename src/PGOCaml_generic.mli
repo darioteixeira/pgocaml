@@ -270,6 +270,8 @@ type bytea = string (* XXX *)
 type point = float * float
 type hstore = (string * string option) list
 type numeric = string
+type uuid = string
+type jsonb = string
 
 type bool_array = bool option list
 type int32_array = int32 option list
@@ -291,6 +293,8 @@ val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
 val string_of_numeric : numeric -> string
+val string_of_uuid : uuid -> string
+val string_of_jsonb : jsonb -> string
 val string_of_inet : inet -> string
 val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
@@ -317,6 +321,8 @@ val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string : string -> hstore
 val numeric_of_string : string -> numeric
+val uuid_of_string : string -> uuid
+val jsonb_of_string : string -> jsonb
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz

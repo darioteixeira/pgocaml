@@ -268,6 +268,8 @@ type bytea = string (* XXX *)
 type point = float * float
 type hstore = (string * string option) list
 type numeric = string
+type uuid = string
+type jsonb = string
 
 type bool_array = bool option list
 type int32_array = int32 option list
@@ -289,6 +291,8 @@ val string_of_float : float -> string
 val string_of_point : point -> string
 val string_of_hstore : hstore -> string
 val string_of_numeric : numeric -> string
+val string_of_uuid : uuid -> string
+val string_of_jsonb : jsonb -> string
 val string_of_inet : inet -> string
 val string_of_timestamp : Calendar.t -> string
 val string_of_timestamptz : timestamptz -> string
@@ -315,6 +319,8 @@ val float_of_string : string -> float
 val point_of_string : string -> point
 val hstore_of_string : string -> hstore
 val numeric_of_string : string -> numeric
+val uuid_of_string : string -> uuid
+val jsonb_of_string : string -> jsonb
 val inet_of_string : string -> inet
 val timestamp_of_string : string -> Calendar.t
 val timestamptz_of_string : string -> timestamptz
@@ -1451,6 +1457,8 @@ let name_of_type ?modifier = function
   | 1186_l -> "interval"     (* INTERVAL *)
   | 2278_l -> "unit"         (* VOID *)
   | 1700_l -> "string"       (* NUMERIC *)
+  | 2950_l -> "uuid"         (* UUID *)
+  | 3802_l -> "string"       (* JSONB *)
   | i ->
       (* For unknown types, look at <postgresql/catalog/pg_type.h>. *)
       raise (Error ("PGOCaml: unknown type for OID " ^ Int32.to_string i))
@@ -1462,6 +1470,8 @@ type bytea = string
 type point = float * float
 type hstore = (string * string option) list
 type numeric = string
+type uuid = string
+type jsonb = string
 
 type bool_array = bool option list
 type int32_array = int32 option list
@@ -1480,6 +1490,10 @@ let string_of_hstore hstore =
   in String.join ", " (List.map string_of_mapping hstore)
 
 let string_of_numeric (x : string) = x
+
+let string_of_uuid (x : string) = x
+
+let string_of_jsonb (x : string) = x
 
 let string_of_inet (addr, mask) =
   let hostmask =
@@ -1621,6 +1635,10 @@ let hstore_of_string str =
   parse_main (Stream.of_string str)
 
 let numeric_of_string (x : string) = x
+
+let uuid_of_string (x : string) = x
+
+let jsonb_of_string (x : string) = x
 
 let inet_of_string =
   let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
