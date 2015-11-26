@@ -1654,7 +1654,7 @@ let inet_of_string =
           else (addr, int_of_string mask)
 
 let point_of_string =
-  let float_pat = "[+-]?[0-9]+\\.*[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in
+  let float_pat = "[+-]?[0-9]+\\.?[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in
   let point_pat = "\\([ \t]*(" ^ float_pat ^ ")[ \t]*,[ \t]*(" ^ float_pat ^ ")[ \t]*\\)" in
   let rex = Pcre.regexp point_pat
   in fun str ->
