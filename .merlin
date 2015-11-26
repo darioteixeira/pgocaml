@@ -1,0 +1,9 @@
+PKG pcre
+PKG oUnit
+PKG csv
+PKG unix
+
+S src
+S tests
+
+B _build/**
