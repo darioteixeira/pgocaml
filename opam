@@ -22,4 +22,5 @@ depends: [
   "csv"
   "camlp4"
   "ocamlbuild" {build}
+  "ounit" {test}
 ]
