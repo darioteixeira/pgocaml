@@ -8,17 +8,18 @@ bug-reports: "https://github.com/darioteixeira/pgocaml/issues"
 dev-repo: "https://github.com/darioteixeira/pgocaml.git"
 license: "LGPL-2.0 with OCaml linking exception"
 build: [
-    ["./configure" "--prefix" prefix "--docdir" "%{doc}%/pgocaml"]
-    [make]
-    [make "doc"]
+  ["./configure" "--prefix" prefix "--docdir" "%{doc}%/pgocaml"]
+  [make]
+  [make "doc"]
 ]
 install: [[make "install"]]
 remove: [["ocamlfind" "remove" "pgocaml"]]
 depends: [
-    "ocamlfind"
-    "base-bytes"
-    "pcre"
-    "calendar"
-    "csv"
-    "camlp4"
+  "ocamlfind"
+  "base-bytes"
+  "pcre"
+  "calendar"
+  "csv"
+  "camlp4"
+  "ocamlbuild" {build}
 ]
