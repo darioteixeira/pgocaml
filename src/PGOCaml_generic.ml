@@ -1661,15 +1661,26 @@ let inet_of_string =
     else (addr, int_of_string mask)
 
 let point_of_string =
-  let float_pat = "[+-]?[0-9]+\\.?[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in
-  let point_pat = "\\([ \t]*(" ^ float_pat ^ ")[ \t]*,[ \t]*(" ^ float_pat ^ ")[ \t]*\\)" in
-  let rex = Pcre.regexp point_pat
-  in fun str ->
+  let point_re =
+    let open Re in
+    let space p =
+      let space = rep (set " \t") in
+      seq [ space ; p ; space ] in
+    let sign = opt (set "+-") in
+    let num = seq [ sign ; rep1 digit ; opt (char '.') ; rep digit ] in
+    let nan = seq [ set "Nn"; char 'a'; set "Nn" ] in
+    let inf = seq [ sign ; set "Ii" ; str "nfinity" ] in
+    let float_pat = Re.alt [num ; nan ; inf ] in
+    [ char '(' ; space (group float_pat) ; char ','
+    ; space (group float_pat) ; char ')' ]
+    |> seq
+    |> compile in
+  fun str ->
     try
-      let res = Pcre.extract ~rex ~full_match:false str
-      in ((float_of_string res.(0)), (float_of_string res.(1)))
+      let subs = Re.exec point_re str in
+      (float_of_string (Re.get subs 1), float_of_string (Re.get subs 2))
     with
-      | _ -> failwith "point_of_string"
+    | _ -> failwith "point_of_string"
 
 let date_of_string = Printer.Date.from_string
 
