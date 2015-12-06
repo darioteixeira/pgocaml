@@ -1720,29 +1720,37 @@ let timestamptz_of_string str =
   cal, tz
 
 let re_interval =
-  Pcre.regexp ~flags:[`EXTENDED]
-    ("(?:(\\d+)\\syears?)?                     # years\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d+)\\smons?)?                      # months\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d+)\\sdays?)?                      # days\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d\\d):(\\d\\d)                     # HH:MM\n"^
-     "   (?::(\\d\\d))?                        # optional :SS\n"^
-     ")?")
+  let open Re in
+  let time_period unit_name =
+    [ group (rep1 digit) ; space ; str unit_name ; opt (char 's') ]
+    |> seq |> opt in
+  let digit2 = [digit ; digit ] |> seq |> group in
+  let time =
+    seq [digit2 ; char ':' ; digit2 ; opt (seq [char ':' ; digit2]) ] in
+  [ opt (time_period "year")
+  ; rep space
+  ; opt (time_period "mon")
+  ; rep space
+  ; opt (time_period "day")
+  ; rep space
+  ; opt time ]
+  |> seq
+  |> compile
 
 let interval_of_string =
-  let int_opt s = if s = "" then 0 else int_of_string s in
+  let int_opt subs i =
+    try int_of_string (Re.get subs i) with
+    | Not_found -> 0 in
   fun str ->
     try
-      let sub = Pcre.extract ~rex:re_interval str in
+      let sub = Re.exec re_interval str in
       Calendar.Period.make
-	(int_opt sub.(1)) (* year *)
-        (int_opt sub.(2)) (* month *)
-        (int_opt sub.(3)) (* day *)
-	(int_opt sub.(4)) (* hour *)
-        (int_opt sub.(5)) (* min *)
-        (int_opt sub.(6)) (* sec *)
+        (int_opt sub 1) (* year *)
+        (int_opt sub 2) (* month *)
+        (int_opt sub 3) (* day *)
+        (int_opt sub 4) (* hour *)
+        (int_opt sub 5) (* min *)
+        (int_opt sub 6) (* sec *)
     with
       Not_found -> failwith ("interval_of_string: bad interval: " ^ str)
 
