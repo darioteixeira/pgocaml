@@ -1641,17 +1641,24 @@ let uuid_of_string (x : string) = x
 let jsonb_of_string (x : string) = x
 
 let inet_of_string =
-  let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
-  in
-    fun str ->
-      let res = Pcre.extract ~rex ~full_match:false str
-      in
-        let addr = Unix.inet_addr_of_string res.(0)
-        and mask = res.(2)
-        in
-          if mask = ""
-          then (addr, (if res.(1) = "." then 32 else 128))
-          else (addr, int_of_string mask)
+  let re =
+    let open Re in
+    [ group (
+        [ rep (compl [set ":./"])
+        ; group (set ":.")
+        ; rep1 (compl [char '/']) ]
+        |> seq
+      )
+    ; opt (seq [char '/'; group (rep1 any)]) ]
+    |> seq
+    |> compile in
+  fun str ->
+    let subs = Re.exec re str in
+    let addr = Unix.inet_addr_of_string (Re.get subs 1) in
+    let mask = try (Re.get subs 3) with Not_found -> "" in (* optional match *)
+    if mask = ""
+    then (addr, (if (Re.get subs 2) = "." then 32 else 128))
+    else (addr, int_of_string mask)
 
 let point_of_string =
   let float_pat = "[+-]?[0-9]+\\.?[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in
