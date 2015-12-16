@@ -2,6 +2,7 @@ PKG pcre
 PKG oUnit
 PKG csv
 PKG unix
+PKG calendar
 
 S src
 S tests
