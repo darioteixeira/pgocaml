@@ -17,15 +17,15 @@ Flag "pgprof"
 Library "pgocaml"
   Path:			src
   Modules:		PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:		unix, calendar, csv, pcre, bytes
+  BuildDepends:		unix, calendar, csv, re, bytes
   FindlibName:		pgocaml
-  XMETARequires:	unix, calendar, csv, pcre, bytes
+  XMETARequires:	unix, calendar, csv, re, bytes
 
 Library "pa_pgsql"
   Path:			src
   Modules:		Pa_pgsql
   CompiledObject:	byte
-  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend
+  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend, pcre
   FindlibParent:	pgocaml
   FindlibName:		syntax
   XMETAType:		syntax

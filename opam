@@ -18,6 +18,7 @@ depends: [
   "ocamlfind"
   "base-bytes"
   "pcre"
+  "re"
   "calendar"
   "csv"
   "camlp4"

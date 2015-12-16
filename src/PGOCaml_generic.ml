@@ -1641,28 +1641,46 @@ let uuid_of_string (x : string) = x
 let jsonb_of_string (x : string) = x
 
 let inet_of_string =
-  let rex = Pcre.regexp "([^:./]*([:.])[^/]+)(?:/(.+))?"
-  in
-    fun str ->
-      let res = Pcre.extract ~rex ~full_match:false str
-      in
-        let addr = Unix.inet_addr_of_string res.(0)
-        and mask = res.(2)
-        in
-          if mask = ""
-          then (addr, (if res.(1) = "." then 32 else 128))
-          else (addr, int_of_string mask)
+  let re =
+    let open Re in
+    [ group (
+        [ rep (compl [set ":./"])
+        ; group (set ":.")
+        ; rep1 (compl [char '/']) ]
+        |> seq
+      )
+    ; opt (seq [char '/'; group (rep1 any)]) ]
+    |> seq
+    |> compile in
+  fun str ->
+    let subs = Re.exec re str in
+    let addr = Unix.inet_addr_of_string (Re.get subs 1) in
+    let mask = try (Re.get subs 3) with Not_found -> "" in (* optional match *)
+    if mask = ""
+    then (addr, (if (Re.get subs 2) = "." then 32 else 128))
+    else (addr, int_of_string mask)
 
 let point_of_string =
-  let float_pat = "[+-]?[0-9]+\\.?[0-9]*|[Nn]a[Nn]|[+-]?[Ii]nfinity" in
-  let point_pat = "\\([ \t]*(" ^ float_pat ^ ")[ \t]*,[ \t]*(" ^ float_pat ^ ")[ \t]*\\)" in
-  let rex = Pcre.regexp point_pat
-  in fun str ->
+  let point_re =
+    let open Re in
+    let space p =
+      let space = rep (set " \t") in
+      seq [ space ; p ; space ] in
+    let sign = opt (set "+-") in
+    let num = seq [ sign ; rep1 digit ; opt (char '.') ; rep digit ] in
+    let nan = seq [ set "Nn"; char 'a'; set "Nn" ] in
+    let inf = seq [ sign ; set "Ii" ; str "nfinity" ] in
+    let float_pat = Re.alt [num ; nan ; inf ] in
+    [ char '(' ; space (group float_pat) ; char ','
+    ; space (group float_pat) ; char ')' ]
+    |> seq
+    |> compile in
+  fun str ->
     try
-      let res = Pcre.extract ~rex ~full_match:false str
-      in ((float_of_string res.(0)), (float_of_string res.(1)))
+      let subs = Re.exec point_re str in
+      (float_of_string (Re.get subs 1), float_of_string (Re.get subs 2))
     with
-      | _ -> failwith "point_of_string"
+    | _ -> failwith "point_of_string"
 
 let date_of_string = Printer.Date.from_string
 
@@ -1702,29 +1720,37 @@ let timestamptz_of_string str =
   cal, tz
 
 let re_interval =
-  Pcre.regexp ~flags:[`EXTENDED]
-    ("(?:(\\d+)\\syears?)?                     # years\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d+)\\smons?)?                      # months\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d+)\\sdays?)?                      # days\n"^
-     "\\s*                                     # \n"^
-     "(?:(\\d\\d):(\\d\\d)                     # HH:MM\n"^
-     "   (?::(\\d\\d))?                        # optional :SS\n"^
-     ")?")
+  let open Re in
+  let time_period unit_name =
+    [ group (rep1 digit) ; space ; str unit_name ; opt (char 's') ]
+    |> seq |> opt in
+  let digit2 = [digit ; digit ] |> seq |> group in
+  let time =
+    seq [digit2 ; char ':' ; digit2 ; opt (seq [char ':' ; digit2]) ] in
+  [ opt (time_period "year")
+  ; rep space
+  ; opt (time_period "mon")
+  ; rep space
+  ; opt (time_period "day")
+  ; rep space
+  ; opt time ]
+  |> seq
+  |> compile
 
 let interval_of_string =
-  let int_opt s = if s = "" then 0 else int_of_string s in
+  let int_opt subs i =
+    try int_of_string (Re.get subs i) with
+    | Not_found -> 0 in
   fun str ->
     try
-      let sub = Pcre.extract ~rex:re_interval str in
+      let sub = Re.exec re_interval str in
       Calendar.Period.make
-	(int_opt sub.(1)) (* year *)
-        (int_opt sub.(2)) (* month *)
-        (int_opt sub.(3)) (* day *)
-	(int_opt sub.(4)) (* hour *)
-        (int_opt sub.(5)) (* min *)
-        (int_opt sub.(6)) (* sec *)
+        (int_opt sub 1) (* year *)
+        (int_opt sub 2) (* month *)
+        (int_opt sub 3) (* day *)
+        (int_opt sub 4) (* hour *)
+        (int_opt sub 5) (* min *)
+        (int_opt sub 6) (* sec *)
     with
       Not_found -> failwith ("interval_of_string: bad interval: " ^ str)
 
