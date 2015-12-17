@@ -14,6 +14,10 @@ Flag "pgprof"
   Description: Build PG'OCaml profiling utility
   Default: true
 
+Flag "p4"
+  Description: PG'OCaml syntax extension
+  Default: true
+
 Library "pgocaml"
   Path:			src
   Modules:		PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
@@ -23,6 +27,7 @@ Library "pgocaml"
 
 Library "pa_pgsql"
   Path:			src
+  Build$:       flag(p4)
   Modules:		Pa_pgsql
   CompiledObject:	byte
   BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend, pcre
@@ -56,7 +61,7 @@ Executable "test_pgocaml_lowlevel"
   BuildDepends:		pgocaml
 
 Executable "test_pgocaml_highlevel"
-  Build$:		flag(tests)
+  Build$:		flag(tests) && flag(p4)
   Install:		false
   Path:			tests
   MainIs:		test_pgocaml_highlevel.ml
