@@ -17,7 +17,6 @@ remove: [["ocamlfind" "remove" "pgocaml"]]
 depends: [
   "ocamlfind"
   "base-bytes"
-  "pcre"
   "re"
   "calendar"
   "csv"

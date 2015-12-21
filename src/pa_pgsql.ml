@@ -113,7 +113,14 @@ let unravel_type dbh orig_type =
 let rec range a b =
   if a < b then a :: range (a+1) b else [];;
 
-let rex = Pcre.regexp "\\$(@?)(\\??)([_a-z][_a-zA-Z0-9']*)"
+let rex =
+    let open Re in
+    [
+    char '$';
+    opt (group (char '@'));
+    opt (group (char '?'));
+    group (seq [alt [char '_'; rg 'a' 'z']; rep (alt [char '_'; char '\''; rg 'a' 'z'; rg 'A' 'Z'; rg '0' '9'])]);
+    ] |> seq |> compile
 
 let pgsql_expand ?(flags = []) _loc dbh query =
   (* Parse the flags. *)
@@ -156,31 +163,18 @@ let pgsql_expand ?(flags = []) _loc dbh query =
   (* Connect, if necessary, to the database. *)
   let my_dbh = get_connection key in
 
-  (* Split the query into text and variable name parts using Pcre.full_split.
+  (* Split the query into text and variable name parts using Re.split_full.
    * eg. "select id from employees where name = $name and salary > $salary"
    * would become a structure equivalent to:
    * ["select id from employees where name = "; "$name"; " and salary > ";
    * "$salary"].
    * Actually it's a wee bit more complicated than that ...
    *)
-  let split = Pcre.full_split ~rex query in
   let split =
-    let rec loop = function
-      | [] -> []
-      | Pcre.Text text :: rest -> `Text text :: loop rest
-      | Pcre.Delim _ :: Pcre.Group (1, list) ::
-	  Pcre.Group (2, option) :: Pcre.Group (3, _varname) :: rest ->
-	  let list = match list with
-	    | "" -> false | "@" -> true | _ -> assert false in
-	  let option = match option with
-	    | "" -> false | "?" -> true | _ -> assert false in
-	  `Var (_varname, list, option) :: loop rest
-      | _ ->
-	  Loc.raise _loc (
-	    Failure "Pcre.full_split: unexpected value returned"
-	  )
-    in
-    loop split in
+    let f = function
+      | `Text text -> `Text text
+      | `Delim subs -> `Var (Re.get subs 3, Re.test subs 1, Re.test subs 2)
+    in List.map f (Re.split_full rex query) in
 
   (* Go to the database, prepare this statement, and find out exactly
    * what the parameter types and return values are.  Exceptions can

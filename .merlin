@@ -1,8 +1,8 @@
-PKG pcre
-PKG oUnit
-PKG csv
-PKG unix
 PKG calendar
+PKG csv
+PKG oUnit
+PKG re
+PKG unix
 
 S src
 S tests

@@ -30,7 +30,7 @@ Library "pa_pgsql"
   Build$:       flag(p4)
   Modules:		Pa_pgsql
   CompiledObject:	byte
-  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend, pcre
+  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend
   FindlibParent:	pgocaml
   FindlibName:		syntax
   XMETAType:		syntax

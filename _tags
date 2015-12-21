@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: e6952d639bd335f15bb1c1b8eed52a24)
+# DO NOT EDIT (digest: 116332bca78a4c4814e0dd87f4309808)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -23,7 +23,6 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: pkg_camlp4.extend
 <src/*.ml{,i,y}>: pkg_camlp4.quotations
 <src/*.ml{,i,y}>: pkg_csv
-<src/*.ml{,i,y}>: pkg_pcre
 <src/*.ml{,i,y}>: pkg_re
 <src/*.ml{,i,y}>: pkg_unix
 <src/*.ml{,i,y}>: use_pgocaml
@@ -53,14 +52,12 @@ true: annot, bin_annot
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.extend
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.quotations
 "tests/test_pgocaml_highlevel.byte": pkg_csv
-"tests/test_pgocaml_highlevel.byte": pkg_pcre
 "tests/test_pgocaml_highlevel.byte": pkg_re
 "tests/test_pgocaml_highlevel.byte": pkg_unix
 "tests/test_pgocaml_highlevel.byte": use_pa_pgsql
 "tests/test_pgocaml_highlevel.byte": use_pgocaml
 <tests/*.ml{,i,y}>: pkg_camlp4.extend
 <tests/*.ml{,i,y}>: pkg_camlp4.quotations
-<tests/*.ml{,i,y}>: pkg_pcre
 <tests/*.ml{,i,y}>: use_pa_pgsql
 # Executable test_re
 "tests/test_re.byte": pkg_bytes
