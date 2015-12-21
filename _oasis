@@ -1,87 +1,88 @@
-OASISFormat:		0.4
-Name:			PG'OCaml
-Version:		2.2
-Synopsis:		OCaml bindings for the PostgreSQL database
-Authors:		Richard W. M. Jones et al.
-Maintainers:		Dario Teixeira
-License:		LGPL-2.0 with OCaml linking exception
-LicenseFile:		LICENSE.txt
-Plugins:		META (0.4), DevFiles (0.4)
-BuildTools:		ocamlbuild, make, camlp4
-PreBuildCommand:	$make config
+OASISFormat:            0.4
+Name:                   PG'OCaml
+Version:                2.3
+Synopsis:               OCaml bindings for the PostgreSQL database
+Authors:                Richard W. M. Jones et al.
+Maintainers:            Dario Teixeira
+License:                LGPL-2.0 with OCaml linking exception
+LicenseFile:            LICENSE.txt
+Plugins:                META (0.4), DevFiles (0.4)
+BuildTools:             ocamlbuild, make, camlp4
+PreBuildCommand:        $make config
 
 Flag "pgprof"
-  Description: Build PG'OCaml profiling utility
-  Default: true
+  Description:          Build PG'OCaml profiling utility
+  Default:              true
 
 Flag "p4"
-  Description: PG'OCaml syntax extension
-  Default: true
+  Description:          PG'OCaml syntax extension
+  Default:              true
 
 Library "pgocaml"
-  Path:			src
-  Modules:		PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:		unix, calendar, csv, re, bytes
-  FindlibName:		pgocaml
-  XMETARequires:	unix, calendar, csv, re, bytes
+  Path:                 src
+  Modules:              PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
+  BuildDepends:         unix, calendar, csv, re, bytes
+  FindlibName:          pgocaml
+  XMETARequires:        unix, calendar, csv, re, bytes
 
 Library "pa_pgsql"
-  Path:			src
-  Build$:       flag(p4)
-  Modules:		Pa_pgsql
-  CompiledObject:	byte
-  BuildDepends:		pgocaml, camlp4.quotations, camlp4.extend
-  FindlibParent:	pgocaml
-  FindlibName:		syntax
-  XMETAType:		syntax
-  XMETADescription:	Syntax extension for PG'OCaml
-  XMETARequires:	pgocaml, camlp4
+  Path:                 src
+  Build$:               flag(p4)
+  Modules:              Pa_pgsql
+  CompiledObject:       byte
+  BuildDepends:         pgocaml, camlp4.quotations, camlp4.extend
+  FindlibParent:        pgocaml
+  FindlibName:          syntax
+  XMETAType:            syntax
+  XMETADescription:     Syntax extension for PG'OCaml
+  XMETARequires:        pgocaml, camlp4
 
 Document "APIDOC"
-  Install:		true
-  InstallDir:		$htmldir
-  Title:		API reference for PG'OCaml
-  Type:			ocamlbuild (0.4)
-  BuildTools+:		ocamldoc
-  XOCamlbuildPath:	src
-  XOCamlbuildLibraries:	pgocaml
+  Install:              true
+  InstallDir:           $htmldir
+  Title:                API reference for PG'OCaml
+  Type:                 ocamlbuild (0.4)
+  BuildTools+:          ocamldoc
+  XOCamlbuildPath:      src
+  XOCamlbuildLibraries: pgocaml
 
 Executable "pgocaml_prof"
-  Build$:		flag(pgprof)
-  Install:		false
-  Path:			utils
-  MainIs:		pgocaml_prof.ml
-  BuildDepends:		pgocaml
+  Build$:               flag(pgprof)
+  Install:              false
+  Path:                 utils
+  MainIs:               pgocaml_prof.ml
+  BuildDepends:         pgocaml
 
 Executable "test_pgocaml_lowlevel"
-  Build$:		flag(tests)
-  Install:		false
-  Path:			tests
-  MainIs:		test_pgocaml_lowlevel.ml
-  BuildDepends:		pgocaml
+  Build$:               flag(tests)
+  Install:              false
+  Path:                 tests
+  MainIs:               test_pgocaml_lowlevel.ml
+  BuildDepends:         pgocaml
 
 Executable "test_pgocaml_highlevel"
-  Build$:		flag(tests) && flag(p4)
-  Install:		false
-  Path:			tests
-  MainIs:		test_pgocaml_highlevel.ml
-  BuildDepends:		pgocaml, pgocaml.syntax
+  Build$:               flag(tests) && flag(p4)
+  Install:              false
+  Path:                 tests
+  MainIs:               test_pgocaml_highlevel.ml
+  BuildDepends:         pgocaml, pgocaml.syntax
 
 Executable "test_re"
-  Build$:		flag(tests)
-  Install:		false
-  Path:			tests
-  MainIs:		test_re.ml
-  BuildDepends:		pgocaml, oUnit
+  Build$:               flag(tests)
+  Install:              false
+  Path:                 tests
+  MainIs:               test_re.ml
+  BuildDepends:         pgocaml, oUnit
 
 Test "pgocaml_lowlevel"
-  Command:		$test_pgocaml_lowlevel
-  WorkingDirectory:	tests
+  Command:              $test_pgocaml_lowlevel
+  WorkingDirectory:     tests
 
 Test "pgocaml_highlevel"
-  Command:		$test_pgocaml_highlevel
-  WorkingDirectory:	tests
+  Command:              $test_pgocaml_highlevel
+  WorkingDirectory:     tests
 
 Test "test_re"
-  Command:		$test_re
-  WorkingDirectory:	tests
+  Command:              $test_re
+  WorkingDirectory:     tests
+ 

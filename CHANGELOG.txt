@@ -1,7 +1,10 @@
-Dev version
+Release 2.3
 ===========
 
-* Patch by Evgenii Lepikhin adding support for types UUID and JSONB.
+* Dario Teixeira: migrate syntax extension from OCaml-pcre to OCaml-re.
+* Rudi Grinberg: migrate core library from OCaml-pcre to OCaml-re.
+* Rudi Grinberg: add unit tests for regular expressions.
+* Evgenii Lepikhin: add support for types UUID and JSONB.
 
 
 Release 2.2
