@@ -7,7 +7,7 @@ Maintainers:            Dario Teixeira
 License:                LGPL-2.0 with OCaml linking exception
 LicenseFile:            LICENSE.txt
 Plugins:                META (0.4), DevFiles (0.4)
-BuildTools:             ocamlbuild, make, camlp4
+BuildTools:             ocamlbuild, make
 PreBuildCommand:        $make config
 
 Flag "pgprof"
@@ -16,7 +16,7 @@ Flag "pgprof"
 
 Flag "p4"
   Description:          PG'OCaml syntax extension
-  Default:              true
+  Default:              false
 
 Library "pgocaml"
   Path:                 src
