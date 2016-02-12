@@ -23,7 +23,7 @@ open Printf
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
-let hstore_name = "hstore"
+let typname_name = "typname"
 
 (* We need a database connection while compiling.  If people use the
  * override flags like "database=foo", then we may connect to several
@@ -69,9 +69,9 @@ let get_connection key =
       let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
       PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
-      (* Prepare the hstore test. *)
-      let hstore_query = "select typname from pg_type where oid = $1" in
-      PGOCaml.prepare dbh ~query:hstore_query ~name:hstore_name ();
+      (* Prepare the type name query. *)
+      let typname_query = "select typname from pg_type where oid = $1" in
+      PGOCaml.prepare dbh ~query:typname_query ~name:typname_name ();
 
       Hashtbl.add connections key dbh;
       dbh
@@ -84,8 +84,9 @@ let name_of_type_wrapper ?modifier dbh oid =
     PGOCaml.name_of_type ?modifier oid
   with PGOCaml.Error msg as exc ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
-    let rows = PGOCaml.execute dbh ~name:hstore_name ~params () in
+    let rows = PGOCaml.execute dbh ~name:typname_name ~params () in
     match rows with
+      | [ [ Some "citext" ] ] -> "string"
       | [ [ Some "hstore" ] ] -> "hstore"
       | _ -> raise exc
 
