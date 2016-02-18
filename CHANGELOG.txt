@@ -5,6 +5,7 @@ Release 2.3
 * Rudi Grinberg: migrate core library from OCaml-pcre to OCaml-re.
 * Rudi Grinberg: add unit tests for regular expressions.
 * Evgenii Lepikhin: add support for types UUID and JSONB.
+* Philippe Wang: add support for type CITEXT.
 
 
 Release 2.2
