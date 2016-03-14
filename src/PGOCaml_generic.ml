@@ -227,8 +227,7 @@ val alter : 'a t -> ?name:string -> string -> unit monad
   * and optionally names it [name]. Same as inject but ignoring the result.
   *)
 
-type row_description = result_description list
-and result_description = {
+type result_description = {
   name : string;			(** Field name. *)
   table : oid option;			(** OID of table. *)
   column : int option;			(** Column number of field in table. *)
@@ -236,11 +235,12 @@ and result_description = {
   length : int;				(** Length of the field. *)
   modifier : int32;			(** Type modifier. *)
 }
+type row_description = result_description list
 
-type params_description = param_description list
-and param_description = {
+type param_description = {
   param_type : oid;			(** The type of the parameter. *)
 }
+type params_description = param_description list
 
 val describe_statement : 'a t -> ?name:string -> unit -> (params_description * row_description option) monad
 (** [describe_statement conn ?name ()] describes the named or unnamed
@@ -1060,7 +1060,7 @@ let close conn =
 let set_private_data conn data =
   conn.private_data <- Some data
 
-let private_data { private_data = private_data } =
+let private_data { private_data } =
   match private_data with
   | None -> raise Not_found
   | Some private_data -> private_data
@@ -1234,13 +1234,13 @@ let begin_work ?isolation ?access ?deferrable conn =
       | `Serializable -> "serializable"
       | `Repeatable_read -> "repeatable read"
       | `Read_committed -> "read committed"
-      | `Read_uncommitted -> "read uncommitted")
-  and access_str = match access with
+      | `Read_uncommitted -> "read uncommitted") in
+  let access_str = match access with
     | None -> ""
     | Some x -> match x with
       | `Read_write -> " read write"
-      | `Read_only -> " read only"
-  and deferrable_str = match deferrable with
+      | `Read_only -> " read only" in
+  let deferrable_str = match deferrable with
     | None -> ""
     | Some x -> (match x with true -> "" | false -> " not") ^ " deferrable" in
   let query = "begin work" ^ isolation_str ^ access_str ^ deferrable_str in
@@ -1339,8 +1339,7 @@ let inject db ?name query =
 
 let alter db ?name query = inject db ?name query >>= fun _ -> return ()
 
-type row_description = result_description list
-and result_description = {
+type result_description = {
   name : string;
   table : oid option;
   column : int option;
@@ -1348,11 +1347,12 @@ and result_description = {
   length : int;
   modifier : int32;
 }
+type row_description = result_description list
 
-type params_description = param_description list
-and param_description = {
+type param_description = {
   param_type : oid;
 }
+type params_description = param_description list
 
 let describe_statement conn ?(name = "") () =
   let msg = new_message 'D' in
@@ -1482,8 +1482,8 @@ type float_array = float option list
 let string_of_hstore hstore =
   let string_of_quoted str = "\"" ^ str ^ "\"" in
   let string_of_mapping (key, value) =
-    let key_str = string_of_quoted key
-    and value_str = match value with
+    let key_str = string_of_quoted key in
+    let value_str = match value with
       | Some v -> string_of_quoted v
       | None -> "NULL"
     in key_str ^ "=>" ^ value_str
