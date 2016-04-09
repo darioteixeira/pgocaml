@@ -388,7 +388,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
           if nullable then
             [%expr PGOCaml_aux.Option.map PGOCaml.([%e Exp.ident { txt = Lident fn; loc }]) [%e col]]
           else
-            [%expr [%e Exp.ident { txt = Lident ("PGOCaml." ^ fn); loc }]
+            [%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
                      (try PGOCaml_aux.Option.get [%e col] with
                       | _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"")]
       ) results in
