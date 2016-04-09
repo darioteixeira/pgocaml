@@ -42,11 +42,11 @@ Library "pa_pgsql"
   XMETARequires:        pgocaml, camlp4
 
 Executable "ppx_pgsql"
-  Path:                 src
+  Path:                 ppx
   Build$:               flag(ppx)
   CompiledObject:       byte
   MainIs:               ppx_pgsql.ml
-  BuildDepends:         pgocaml, compiler-libs.common
+  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
 
 Document "APIDOC"
   Install:              true
