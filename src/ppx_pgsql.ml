@@ -4,14 +4,18 @@ open Asttypes
 open Parsetree
 open Longident
 
-let hello_mapper _argv =
+let pgocaml_mapper _argv =
   { default_mapper with
     expr = fun mapper expr ->
       match expr with
-      | { pexp_desc = Pexp_constant (Const_string (str, _)) } ->
-        { expr with pexp_desc = Pexp_constant (Const_string ("!" ^ str, None)) }
+      | { pexp_desc = Pexp_extension ({ txt = "pgsql"; loc }, pstr); } ->
+        Exp.assert_ ~loc {
+          pexp_desc = (Pexp_construct ({ txt = Lident "false"; loc }, None));
+          pexp_loc = loc;
+          pexp_attributes = [];
+        }
       | other ->
         default_mapper.expr mapper other
   }
 
-let _ = register "hello" hello_mapper
+let _ = register "pgocaml" pgocaml_mapper

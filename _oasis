@@ -88,9 +88,9 @@ Executable "test_re"
 Executable "test_ppx"
   Build$:               flag(tests)
   Install:              false
-  Path:                 tests
+  Path:                 tests_ppx
   MainIs:               test_ppx.ml
-  BuildDepends:         pgocaml
+  BuildDepends:         pgocaml, oUnit
   BuildTools:           ppx_pgsql
 
 Test "pgocaml_lowlevel"
