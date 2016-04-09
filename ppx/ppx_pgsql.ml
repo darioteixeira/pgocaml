@@ -143,7 +143,6 @@ let expr_of_exprs exprs =
 
 let pgsql_expand ?(flags = []) loc dbh query =
   (* Parse the flags. *)
-  fprintf stderr "flags: %s query: %s\n%!" (String.concat ";" flags) query;
   let f_execute = ref false in
   let f_nullable_results = ref false in
   let key = ref { host = None; port = None; user = None;
@@ -460,8 +459,6 @@ let pgocaml_mapper _argv =
               { txt = "pgsql"; loc },
               PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
             )} (* when list_of_string_args args <> [] *) ->
-        Printf.fprintf stderr "HEP!\n%!";
-        (* default_mapper.expr mapper expr *)
         expand_sql loc dbh (list_of_string_args args)
       | { pexp_desc =
             Pexp_extension (
