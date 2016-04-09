@@ -472,22 +472,13 @@ let pgocaml_mapper _argv =
         ( try 
             expand_sql loc dbh (list_of_string_args args)
           with exn ->
-            { expr with
-              pexp_desc = Pexp_extension (
-                  extension_of_error @@
-                  Location.error ~loc (Printf.sprintf "aiee: %s" (Printexc.to_string exn))
-                )
-            }
+            Exp.assert_ ~loc ~attrs:[attribute_of_warning loc @@ Printf.sprintf "aiee: %s" (Printexc.to_string exn)] [%expr false]
         )
       | { pexp_desc =
             Pexp_extension (
               { txt = "pgsql"; loc }, _)} ->
-        { expr with
-          pexp_desc = Pexp_extension (
-              extension_of_error @@
-              Location.error ~loc (Printf.sprintf "aiee: something unsupported")
-            )
-        }
+        Exp.assert_ ~loc ~attrs:[attribute_of_warning loc @@ Printf.sprintf "aiee: unknown extension arguments"] [%expr false]
+
       | other ->
         default_mapper.expr mapper other
   }
