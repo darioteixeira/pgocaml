@@ -128,7 +128,9 @@ let rex =
     group (seq [alt [char '_'; rg 'a' 'z']; rep (alt [char '_'; char '\''; rg 'a' 'z'; rg 'A' 'Z'; rg '0' '9'])]);
     ] |> seq |> compile
 
-let loc_raise loc exn = raise exn
+let loc_raise loc exn =
+  Printf.fprintf stderr "loc_raise %s\n%!" (Printexc.to_string exn);
+  raise exn
 
 let const_string ~loc str =
   { pexp_desc = Pexp_constant (Const_string (str, None));
@@ -459,11 +461,25 @@ let pgocaml_mapper _argv =
               { txt = "pgsql"; loc },
               PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
             )} when list_of_string_args args <> [] ->
-        expand_sql loc dbh (list_of_string_args args)
+        ( try 
+            expand_sql loc dbh (list_of_string_args args)
+          with exn ->
+            { expr with
+              pexp_desc = Pexp_extension (
+                  extension_of_error @@
+                  Location.error ~loc (Printf.sprintf "aiee: %s" (Printexc.to_string exn))
+                )
+            }
+        )
       | { pexp_desc =
             Pexp_extension (
               { txt = "pgsql"; loc }, _)} ->
-        failwith "Something unsupported"
+        { expr with
+          pexp_desc = Pexp_extension (
+              extension_of_error @@
+              Location.error ~loc (Printf.sprintf "aiee: something unsupported")
+            )
+        }
       | other ->
         default_mapper.expr mapper other
   }
