@@ -77,5 +77,6 @@ true: annot, bin_annot
 # OASIS_STOP
 <src/pa_pgsql.ml>: syntax_camlp4o
 <tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
+<tests/test_ppx.ml>: ppx(src/ppx_pgsql.byte)
 
 true: safe_string

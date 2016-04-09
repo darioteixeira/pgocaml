@@ -3,6 +3,7 @@ PKG csv
 PKG oUnit
 PKG re
 PKG unix
+PKG compiler-libs
 
 S src
 S tests
