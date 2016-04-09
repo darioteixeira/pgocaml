@@ -3,6 +3,8 @@ PKG csv
 PKG oUnit
 PKG re
 PKG unix
+PKG compiler-libs
+PKG ppx_tools.metaquot
 
 S src
 S tests
