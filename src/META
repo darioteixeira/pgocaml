@@ -16,5 +16,17 @@ package "syntax" (
  archive(syntax, toploop) = "pa_pgsql.cma"
  exists_if = "pa_pgsql.cma"
 )
+
+package "ppx" (
+ version = "2.3"
+ description = "Syntax extension for PG'OCaml using PPX"
+ requires = "pgocaml compiler-libs.common ppx_tools.metaquot"
+ archive(syntax, preprocessor) = "ppx_pgsql.cma"
+ archive(syntax, toploop) = "ppx_pgsql.cma"
+ archive(syntax, preprocessor, native) = "ppx_pgsql.cmxa"
+ archive(syntax, preprocessor, native, plugin) = "ppx_pgsql.cmxs"
+ ppx = "ppx_pgsql"
+ exists_if = "ppx_pgsql.cma"
+)
 # OASIS_STOP
 

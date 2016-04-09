@@ -20,7 +20,7 @@ Flag "p4"
 
 Flag "ppx"
   Description:          PG'OCaml syntax extension (PPX version)
-  Default:              true
+  Default:              false
 
 Library "pgocaml"
   Path:                 src
@@ -40,6 +40,19 @@ Library "pa_pgsql"
   XMETAType:            syntax
   XMETADescription:     Syntax extension for PG'OCaml
   XMETARequires:        pgocaml, camlp4
+
+Library "ppx_pgsql"
+  Path:                 ppx
+  FindlibParent:        pgocaml
+  FindlibName:          ppx
+  Modules:              Ppx_pgsql
+  Install:              true
+  Build$:               flag(ppx)
+  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
+  CompiledObject:       best
+  XMETAType:            syntax
+  XMETADescription:     Syntax extension for PG'OCaml using PPX
+  XMETAExtraLines:      ppx = "ppx_pgsql"
 
 Executable "ppx_pgsql"
   Path:                 ppx
