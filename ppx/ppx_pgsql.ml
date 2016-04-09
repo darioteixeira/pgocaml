@@ -458,7 +458,7 @@ let pgocaml_mapper _argv =
             Pexp_extension (
               { txt = "pgsql"; loc },
               PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
-            )} (* when list_of_string_args args <> [] *) ->
+            )} when list_of_string_args args <> [] ->
         expand_sql loc dbh (list_of_string_args args)
       | { pexp_desc =
             Pexp_extension (
