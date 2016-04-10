@@ -7122,6 +7122,17 @@ let setup_t =
                       flag_description = Some "PG'OCaml syntax extension";
                       flag_default = [(OASISExpr.EBool true, false)]
                    });
+               Flag
+                 ({
+                     cs_name = "ppx";
+                     cs_data = PropList.Data.create ();
+                     cs_plugin_data = []
+                  },
+                   {
+                      flag_description =
+                        Some "PG'OCaml syntax extension (PPX version)";
+                      flag_default = [(OASISExpr.EBool true, false)]
+                   });
                Library
                  ({
                      cs_name = "pgocaml";
@@ -7431,6 +7442,79 @@ let setup_t =
                       lib_findlib_directory = None;
                       lib_findlib_containers = []
                    });
+               Library
+                 ({
+                     cs_name = "ppx_pgsql";
+                     cs_data = PropList.Data.create ();
+                     cs_plugin_data = []
+                  },
+                   {
+                      bs_build =
+                        [
+                           (OASISExpr.EBool true, false);
+                           (OASISExpr.EFlag "ppx", true)
+                        ];
+                      bs_install = [(OASISExpr.EBool true, true)];
+                      bs_path = "ppx";
+                      bs_compiled_object = Best;
+                      bs_build_depends =
+                        [
+                           InternalLibrary "pgocaml";
+                           FindlibPackage ("compiler-libs.common", None);
+                           FindlibPackage ("ppx_tools.metaquot", None)
+                        ];
+                      bs_build_tools =
+                        [ExternalTool "ocamlbuild"; ExternalTool "make"];
+                      bs_c_sources = [];
+                      bs_data_files = [];
+                      bs_ccopt = [(OASISExpr.EBool true, [])];
+                      bs_cclib = [(OASISExpr.EBool true, [])];
+                      bs_dlllib = [(OASISExpr.EBool true, [])];
+                      bs_dllpath = [(OASISExpr.EBool true, [])];
+                      bs_byteopt = [(OASISExpr.EBool true, [])];
+                      bs_nativeopt = [(OASISExpr.EBool true, [])]
+                   },
+                   {
+                      lib_modules = ["Ppx_pgsql"];
+                      lib_pack = false;
+                      lib_internal_modules = [];
+                      lib_findlib_parent = Some "pgocaml";
+                      lib_findlib_name = Some "ppx";
+                      lib_findlib_containers = []
+                   });
+               Executable
+                 ({
+                     cs_name = "ppx_pgsql";
+                     cs_data = PropList.Data.create ();
+                     cs_plugin_data = []
+                  },
+                   {
+                      bs_build =
+                        [
+                           (OASISExpr.EBool true, false);
+                           (OASISExpr.EFlag "ppx", true)
+                        ];
+                      bs_install = [(OASISExpr.EBool true, true)];
+                      bs_path = "ppx";
+                      bs_compiled_object = Byte;
+                      bs_build_depends =
+                        [
+                           InternalLibrary "pgocaml";
+                           FindlibPackage ("compiler-libs.common", None);
+                           FindlibPackage ("ppx_tools.metaquot", None)
+                        ];
+                      bs_build_tools =
+                        [ExternalTool "ocamlbuild"; ExternalTool "make"];
+                      bs_c_sources = [];
+                      bs_data_files = [];
+                      bs_ccopt = [(OASISExpr.EBool true, [])];
+                      bs_cclib = [(OASISExpr.EBool true, [])];
+                      bs_dlllib = [(OASISExpr.EBool true, [])];
+                      bs_dllpath = [(OASISExpr.EBool true, [])];
+                      bs_byteopt = [(OASISExpr.EBool true, [])];
+                      bs_nativeopt = [(OASISExpr.EBool true, [])]
+                   },
+                   {exec_custom = false; exec_main_is = "ppx_pgsql.ml"});
                Doc
                  ({
                      cs_name = "APIDOC";
@@ -8035,6 +8119,42 @@ let setup_t =
                       bs_nativeopt = [(OASISExpr.EBool true, [])]
                    },
                    {exec_custom = false; exec_main_is = "test_re.ml"});
+               Executable
+                 ({
+                     cs_name = "test_ppx";
+                     cs_data = PropList.Data.create ();
+                     cs_plugin_data = []
+                  },
+                   {
+                      bs_build =
+                        [
+                           (OASISExpr.EBool true, false);
+                           (OASISExpr.EFlag "tests", true)
+                        ];
+                      bs_install = [(OASISExpr.EBool true, false)];
+                      bs_path = "tests_ppx";
+                      bs_compiled_object = Byte;
+                      bs_build_depends =
+                        [
+                           InternalLibrary "pgocaml";
+                           FindlibPackage ("oUnit", None)
+                        ];
+                      bs_build_tools =
+                        [
+                           ExternalTool "ocamlbuild";
+                           ExternalTool "make";
+                           InternalExecutable "ppx_pgsql"
+                        ];
+                      bs_c_sources = [];
+                      bs_data_files = [];
+                      bs_ccopt = [(OASISExpr.EBool true, [])];
+                      bs_cclib = [(OASISExpr.EBool true, [])];
+                      bs_dlllib = [(OASISExpr.EBool true, [])];
+                      bs_dllpath = [(OASISExpr.EBool true, [])];
+                      bs_byteopt = [(OASISExpr.EBool true, [])];
+                      bs_nativeopt = [(OASISExpr.EBool true, [])]
+                   },
+                   {exec_custom = false; exec_main_is = "test_ppx.ml"});
                Test
                  ({
                      cs_name = "pgocaml_lowlevel";
