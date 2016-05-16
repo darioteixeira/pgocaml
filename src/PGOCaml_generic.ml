@@ -1715,7 +1715,7 @@ let timestamptz_of_string str =
   let tz = match tz with
     | None -> Time_Zone.Local (* best guess? *)
     | Some tz ->
-	let sgn = match tz.[0] with '+' -> 1 | '-' -> 0 | _ -> assert false in
+	let sgn = match tz.[0] with '+' -> 1 | '-' -> -1 | _ -> assert false in
 	let mag = int_of_string (String.sub tz 1 2) in
 	Time_Zone.UTC_Plus (sgn * mag) in
   cal, tz
