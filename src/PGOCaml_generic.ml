@@ -1025,7 +1025,7 @@ let connect ?host ?port ?user ?password ?database
       | AuthenticationSCMCredential ->
 	  fail (Error "PGOCaml: SCM Credential authentication not supported")
       | ErrorResponse err ->
-	  pg_error ~conn err
+	  pg_error err
       | NoticeResponse err ->
 	  (* XXX Do or print something here? *)
 	  loop None
