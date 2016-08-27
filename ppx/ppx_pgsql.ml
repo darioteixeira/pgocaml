@@ -395,7 +395,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
             else
               [%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
                        (try PGOCaml_aux.Option.get [%e col] with
-                        | _ -> failwith "pa_pgsql's nullability heuristic has failed - use \"nullable-results\"")]
+                        | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\"")]
         ) results in
       let convert =
         (* Avoid generating a single-element tuple. *)
