@@ -1443,6 +1443,7 @@ let name_of_type ?modifier = function
   | 21_l -> "int16"          (* INT2 *)
   | 23_l -> "int32"          (* INT4 *)
   | 25_l -> "string"         (* TEXT *)
+  | 114_l -> "string"        (* JSON *)
   | 600_l -> "point"         (* POINT *)
   | 700_l
   | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
