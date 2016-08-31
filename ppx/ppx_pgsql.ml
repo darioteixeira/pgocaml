@@ -439,7 +439,7 @@ let list_of_string_args args =
   let maybe_strs =
   List.map
     (function
-      | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None))})
+      | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, _))})
         -> Some str
       | _ -> None
     )
