@@ -1443,6 +1443,8 @@ let name_of_type ?modifier = function
   | 21_l -> "int16"          (* INT2 *)
   | 23_l -> "int32"          (* INT4 *)
   | 25_l -> "string"         (* TEXT *)
+  | 114_l -> "string"        (* JSON *)
+  | 119_l -> "string_array"  (* JSON[] *)
   | 600_l -> "point"         (* POINT *)
   | 700_l
   | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
@@ -1464,6 +1466,7 @@ let name_of_type ?modifier = function
   | 1700_l -> "string"       (* NUMERIC *)
   | 2950_l -> "uuid"         (* UUID *)
   | 3802_l -> "string"       (* JSONB *)
+  | 3807_l -> "string_array" (* JSONB[] *)
   | i ->
       (* For unknown types, look at <postgresql/catalog/pg_type.h>. *)
       raise (Error ("PGOCaml: unknown type for OID " ^ Int32.to_string i))
