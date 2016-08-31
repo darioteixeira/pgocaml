@@ -132,9 +132,7 @@ let loc_raise loc exn =
   raise exn
 
 let const_string ~loc str =
-  { pexp_desc = Pexp_constant (Const_string (str, None));
-    pexp_loc = loc;
-    pexp_attributes = []; }
+  Exp.constant ~loc (Const.string str)
 
 let expr_of_exprs exprs =
   List.fold_right
@@ -440,7 +438,7 @@ let list_of_string_args args =
   let maybe_strs =
   List.map
     (function
-      | ("", {pexp_desc = Pexp_constant (Const_string (str, None))})
+      | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None))})
         -> Some str
       | _ -> None
     )
