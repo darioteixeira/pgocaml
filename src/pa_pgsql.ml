@@ -104,6 +104,7 @@ let unravel_type dbh orig_type =
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
       match rows with
+        | [ [ Some typtype ; _ ] ] when typtype = "e" -> "string"
         | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
