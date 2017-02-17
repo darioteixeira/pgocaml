@@ -18,6 +18,10 @@ Flag "p4"
   Description:          PG'OCaml syntax extension
   Default:              false
 
+Flag "ppx"
+  Description:          PG'OCaml syntax extension (PPX version)
+  Default:              false
+
 Library "pgocaml"
   Path:                 src
   Modules:              PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
@@ -36,6 +40,26 @@ Library "pa_pgsql"
   XMETAType:            syntax
   XMETADescription:     Syntax extension for PG'OCaml
   XMETARequires:        pgocaml, camlp4
+
+Library "ppx_pgsql"
+  Path:                 ppx
+  FindlibParent:        pgocaml
+  FindlibName:          ppx
+  Modules:              Ppx_pgsql
+  Install:              true
+  Build$:               flag(ppx)
+  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
+  CompiledObject:       best
+  XMETAType:            syntax
+  XMETADescription:     Syntax extension for PG'OCaml using PPX
+  XMETAExtraLines:      ppx = "ppx_pgsql"
+
+Executable "ppx_pgsql"
+  Path:                 ppx
+  Build$:               flag(ppx)
+  CompiledObject:       byte
+  MainIs:               ppx_pgsql.ml
+  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
 
 Document "APIDOC"
   Install:              true
@@ -73,6 +97,14 @@ Executable "test_re"
   Path:                 tests
   MainIs:               test_re.ml
   BuildDepends:         pgocaml, oUnit
+
+Executable "test_ppx"
+  Build$:               flag(tests)
+  Install:              false
+  Path:                 tests_ppx
+  MainIs:               test_ppx.ml
+  BuildDepends:         pgocaml, oUnit
+  BuildTools:           ppx_pgsql
 
 Test "pgocaml_lowlevel"
   Command:              $test_pgocaml_lowlevel
