@@ -309,6 +309,7 @@ val string_of_bool_array : bool_array -> string
 val string_of_int32_array : int32_array -> string
 val string_of_int64_array : int64_array -> string
 val string_of_string_array : string_array -> string
+val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 
 val oid_of_string : string -> oid
