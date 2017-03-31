@@ -478,14 +478,14 @@ let pgocaml_mapper _argv =
       | { pexp_desc =
             Pexp_extension (
               { txt = "pgsql"; loc },
-              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
+              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc}, _)}]
             )} ->
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
             ( match expand_sql loc dbh args with
-              | Rresult.Ok x ->
-                x
+              | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
+                {pexp_desc; pexp_loc = qloc; pexp_attributes}
               | Error s ->
                 { expr with
                   pexp_desc = Pexp_extension (
