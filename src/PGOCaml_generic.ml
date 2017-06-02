@@ -879,6 +879,10 @@ let profile_op uuid op detail f =
 
 (*----- Connection. -----*)
 
+let pgsql_socket dir port =
+  let sockaddr = sprintf "%s/.s.PGSQL.%d" dir port in
+  Unix.ADDR_UNIX sockaddr
+
 let connect ?host ?port ?user ?password ?database
     ?(unix_domain_socket_dir = PGOCaml_config.default_unix_domain_socket_dir)
     () =
@@ -924,11 +928,14 @@ let connect ?host ?port ?user ?password ?database
     | Some port -> port
     | None ->
 	try int_of_string (Sys.getenv "PGPORT")
-	with Not_found | Failure "int_of_string" -> 5432 in
+	with Not_found | Failure _ -> 5432 in
 
   (* Make the socket address. *)
   let sockaddr =
     match host with
+    | Some h when
+        String.length h > 0 && String.get h 0 = '/' ->
+      pgsql_socket h port
     | Some hostname ->
 	(try
 	   let hostent = Unix.gethostbyname hostname in
@@ -951,8 +958,7 @@ let connect ?host ?port ?user ?password ?database
 	     raise (Error ("PGOCaml: unknown host: " ^ hostname))
 	);
     | None -> (* Unix domain socket. *)
-	let sockaddr = sprintf "%s/.s.PGSQL.%d" unix_domain_socket_dir port in
-	Unix.ADDR_UNIX sockaddr in
+      pgsql_socket unix_domain_socket_dir port in
 
   (* Create a universally unique identifier for this connection.  This
    * is mainly for debugging and profiling.
@@ -965,7 +971,7 @@ let connect ?host ?port ?user ?password ?database
     let ppid =
       try
         Unix.getppid ()
-      with Invalid_argument "Unix.getppid not implemented" -> 0
+      with Invalid_argument _ -> 0
     in
     sprintf "%s %d %d %g %s %g"
       (Unix.gethostname ())
