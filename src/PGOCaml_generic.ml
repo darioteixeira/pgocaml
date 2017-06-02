@@ -307,6 +307,7 @@ val string_of_bool_array : bool_array -> string
 val string_of_int32_array : int32_array -> string
 val string_of_int64_array : int64_array -> string
 val string_of_string_array : string_array -> string
+val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 
 val oid_of_string : string -> oid
@@ -1456,8 +1457,11 @@ let name_of_type ?modifier = function
   | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
   | 869_l -> "inet"          (* INET *)
   | 1000_l -> "bool_array"   (* BOOLEAN[] *)
+  | 1001_l -> "bytea_array"   (* BYTEA[] *)
   | 1007_l -> "int32_array"  (* INT4[] *)
   | 1009_l -> "string_array" (* TEXT[] *)
+  | 1014_l -> "string_array"  (* CHAR[] *)
+  | 1015_l -> "string_array"  (* VARCHAR[] *)
   | 1016_l -> "int64_array"  (* INT8[] *)
   | 1021_l
   | 1022_l -> "float_array"  (* FLOAT4[], FLOAT8[] *)
@@ -1604,6 +1608,9 @@ let string_of_bytea b =
       Buffer.add_char buf c
   done;
   Buffer.contents buf
+
+let string_of_bytea_array a =
+  string_of_any_array (List.map (option_map string_of_bytea) a)
 
 let string_of_string (x : string) = x
 let oid_of_string = Int32.of_string
