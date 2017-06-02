@@ -3,7 +3,7 @@
 Please note that this is not the first or only PGSQL bindings for
 OCaml. Here are the others which you may want to consider:
 
-* [postgresql-ocaml](http://www.ocaml.info/home/ocaml_sources.html)
+* [postgresql-ocaml](https://mmottl.github.io/postgresql-ocaml/)
 PostgreSQL-OCaml by Markus Mottl
 
 * [ocamlodbc](http://home.gna.org/ocamlodbc/)
