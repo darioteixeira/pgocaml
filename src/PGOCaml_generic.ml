@@ -1585,7 +1585,21 @@ let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to
 let string_of_string_array a = string_of_any_array (List.map (option_map String.escaped) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 
-let string_of_bytea bytea = "\\x" ^ Digest.(to_hex (string bytea))
+let string_of_bytea =
+  let char_hex n = (* copy of Digest.char_hex *)
+    Char.unsafe_chr (n + if n < 10 then Char.code '0' else (Char.code 'a' - 10))
+  in
+  let to_hex d = (* copy of Digest.to_hex without the 16 character limitation *)
+    let n = String.length d in
+    let result = Bytes.create (2*n) in
+    for i = 0 to n-1 do
+      let x = Char.code d.[i] in
+      Bytes.unsafe_set result (i*2) (char_hex (x lsr 4));
+      Bytes.unsafe_set result (i*2+1) (char_hex (x land 0x0f));
+    done;
+    Bytes.unsafe_to_string result
+  in
+  fun bytea -> "\\x" ^ to_hex bytea
 
 let string_of_bytea_array a =
   string_of_any_array (List.map (option_map string_of_bytea) a)
