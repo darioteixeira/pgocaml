@@ -21,9 +21,9 @@ Flag "p4"
 Library "pgocaml"
   Path:                 src
   Modules:              PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:         unix, calendar, csv, re, bytes
+  BuildDepends:         unix, calendar, csv, re, bytes, hex
   FindlibName:          pgocaml
-  XMETARequires:        unix, calendar, csv, re, bytes
+  XMETARequires:        unix, calendar, csv, re, bytes, hex
 
 Library "pa_pgsql"
   Path:                 src

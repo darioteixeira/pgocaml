@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 116332bca78a4c4814e0dd87f4309808)
+# DO NOT EDIT (digest: 9b02327414cefc5ffe99408b9e89442a)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -23,6 +23,7 @@ true: annot, bin_annot
 <src/*.ml{,i,y}>: pkg_camlp4.extend
 <src/*.ml{,i,y}>: pkg_camlp4.quotations
 <src/*.ml{,i,y}>: pkg_csv
+<src/*.ml{,i,y}>: pkg_hex
 <src/*.ml{,i,y}>: pkg_re
 <src/*.ml{,i,y}>: pkg_unix
 <src/*.ml{,i,y}>: use_pgocaml
@@ -30,12 +31,14 @@ true: annot, bin_annot
 "utils/pgocaml_prof.byte": pkg_bytes
 "utils/pgocaml_prof.byte": pkg_calendar
 "utils/pgocaml_prof.byte": pkg_csv
+"utils/pgocaml_prof.byte": pkg_hex
 "utils/pgocaml_prof.byte": pkg_re
 "utils/pgocaml_prof.byte": pkg_unix
 "utils/pgocaml_prof.byte": use_pgocaml
 <utils/*.ml{,i,y}>: pkg_bytes
 <utils/*.ml{,i,y}>: pkg_calendar
 <utils/*.ml{,i,y}>: pkg_csv
+<utils/*.ml{,i,y}>: pkg_hex
 <utils/*.ml{,i,y}>: pkg_re
 <utils/*.ml{,i,y}>: pkg_unix
 <utils/*.ml{,i,y}>: use_pgocaml
@@ -43,6 +46,7 @@ true: annot, bin_annot
 "tests/test_pgocaml_lowlevel.byte": pkg_bytes
 "tests/test_pgocaml_lowlevel.byte": pkg_calendar
 "tests/test_pgocaml_lowlevel.byte": pkg_csv
+"tests/test_pgocaml_lowlevel.byte": pkg_hex
 "tests/test_pgocaml_lowlevel.byte": pkg_re
 "tests/test_pgocaml_lowlevel.byte": pkg_unix
 "tests/test_pgocaml_lowlevel.byte": use_pgocaml
@@ -52,6 +56,7 @@ true: annot, bin_annot
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.extend
 "tests/test_pgocaml_highlevel.byte": pkg_camlp4.quotations
 "tests/test_pgocaml_highlevel.byte": pkg_csv
+"tests/test_pgocaml_highlevel.byte": pkg_hex
 "tests/test_pgocaml_highlevel.byte": pkg_re
 "tests/test_pgocaml_highlevel.byte": pkg_unix
 "tests/test_pgocaml_highlevel.byte": use_pa_pgsql
@@ -63,6 +68,7 @@ true: annot, bin_annot
 "tests/test_re.byte": pkg_bytes
 "tests/test_re.byte": pkg_calendar
 "tests/test_re.byte": pkg_csv
+"tests/test_re.byte": pkg_hex
 "tests/test_re.byte": pkg_oUnit
 "tests/test_re.byte": pkg_re
 "tests/test_re.byte": pkg_unix
@@ -70,6 +76,7 @@ true: annot, bin_annot
 <tests/*.ml{,i,y}>: pkg_bytes
 <tests/*.ml{,i,y}>: pkg_calendar
 <tests/*.ml{,i,y}>: pkg_csv
+<tests/*.ml{,i,y}>: pkg_hex
 <tests/*.ml{,i,y}>: pkg_oUnit
 <tests/*.ml{,i,y}>: pkg_re
 <tests/*.ml{,i,y}>: pkg_unix
