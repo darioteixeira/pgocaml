@@ -26,7 +26,7 @@ Library "pgocaml"
   XMETARequires:        unix, calendar, csv, re, bytes, hex
 
 Library "pa_pgsql"
-  Path:                 src
+  Path:                 syntax
   Build$:               flag(p4)
   Modules:              Pa_pgsql
   CompiledObject:       byte
