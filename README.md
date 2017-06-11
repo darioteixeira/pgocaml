@@ -82,64 +82,26 @@ let () =
   PGOCaml.close(dbh)
 ```
 
-Prepared statements are checked in reverse order, so this will compile:
+The PPX allows you to specify that queries returning results should be returned as
+objects, rather than tuples. This is not currently supported in the Camlp4 version
+(which is being deprecated).
 
 ```ocaml
-let () =
-  let dbh = PGOCaml.connect () in
-  let insert name salary =
-    [%pgsql dbh "insert into employees (name, salary) VALUES ($name, $salary)"]
-  in
-  ignore(insert "Chris" 1_000.0);
-  let get name =
-    [%pgsql dbh "select salary from employees where name = $name"]
-  in
-  let () =
-    [%pgsql dbh "execute" "
-      CREATE TEMP TABLE IF NOT EXISTS employees (
-        name TEXT PRIMARY KEY,
-        salary FLOAT
-      )"]
-  in
-  let name = "Chris" in
-  let salary = get name
-    |> List.hd
-    |> function
-        | Some(x) -> x
-        | None -> raise(Failure "The database is probably broken.")
-  in
-  Printf.printf "%s's salary is %.02f\n" name salary;
-  PGOCaml.close(dbh)
+let%lwt res =
+  [%pgsql.object dbh "SELECT * FROM employees"]
+in
+List.iter
+  (fun row ->
+    Printf.printf "%s makes $%f\n" row#name row#salary)
+  res
 ```
 
-but the following will NOT:
+The PPX now also supports `${...}` expansions.
 
 ```ocaml
-let () =
-  let dbh = PGOCaml.connect () in
-  let () =
-    [%pgsql dbh "execute" "
-      CREATE TEMP TABLE IF NOT EXISTS employees (
-        name TEXT PRIMARY KEY,
-        salary FLOAT
-      )"]
-  in
-  let insert name salary =
-    [%pgsql dbh "insert into employees (name, salary) VALUES ($name, $salary)"]
-  in
-  ignore(insert "Chris" 1_000.0);
-  let get name =
-    [%pgsql dbh "select salary from employees where name = $name"]
-  in
-  let name = "Chris" in
-  let salary = get name
-    |> List.hd
-    |> function
-        | Some(x) -> x
-        | None -> raise(Failure "The database is probably broken.")
-  in
-  Printf.printf "%s's salary is %.02f\n" name salary;
-  PGOCaml.close(dbh)
+(* where [e] is a row returned by a [pgsql.object] query *)
+let%lwt incr_sal e =
+  [%pgsql dbh "UPDATE employees SET salary = ${e#salary +. 1.0}"]
 ```
 
 ----------------------------------------------------------------------

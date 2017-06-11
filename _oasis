@@ -27,7 +27,7 @@ Library "pgocaml"
   Modules:              PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
   BuildDepends:         unix, calendar, csv, re, bytes, hex, rresult
   FindlibName:          pgocaml
-  XMETARequires:        unix, calendar, csv, re, bytes, hex, rresult
+  XMETARequires:        unix, calendar, csv, re, bytes, hex
 
 Library "pa_pgsql"
   Path:                 syntax
