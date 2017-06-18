@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: b27d9df69aa0bf8aff9c5783f7da3a9d)
+# DO NOT EDIT (digest: 78da839b3ce72c03d838d3a60a305171)
 version = "2.3"
 description = "OCaml bindings for the PostgreSQL database"
-requires = "unix calendar csv re bytes"
+requires = "unix calendar csv re bytes hex"
 archive(byte) = "pgocaml.cma"
 archive(byte, plugin) = "pgocaml.cma"
 archive(native) = "pgocaml.cmxa"

@@ -1579,13 +1579,23 @@ let option_map f = function
   | Some x -> Some (f x)
   | None -> None
 
+let escape_string str =
+  let buf = Buffer.create 128 in
+  for i = 0 to String.length str - 1 do
+    match str.[i] with
+      | '"' | '\\' as x -> Buffer.add_char buf '\\'; Buffer.add_char buf x
+      | x -> Buffer.add_char buf x
+  done;
+  Buffer.contents buf
+
 let string_of_bool_array a = string_of_any_array (List.map (option_map string_of_bool) a)
 let string_of_int32_array a = string_of_any_array (List.map (option_map Int32.to_string) a)
 let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to_string) a)
-let string_of_string_array a = string_of_any_array (List.map (option_map String.escaped) a)
+let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 
-let string_of_bytea bytea = "\\x" ^ Digest.(to_hex (string bytea))
+let string_of_bytea b =
+  let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
 
 let string_of_bytea_array a =
   string_of_any_array (List.map (option_map string_of_bytea) a)
