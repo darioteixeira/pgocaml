@@ -18,6 +18,7 @@ depends: [
   "base-bytes"
   "calendar"
   "csv"
+  "hex"
   "ocamlbuild" {build}
   "ocamlfind" {build}
   "ounit" {test}
