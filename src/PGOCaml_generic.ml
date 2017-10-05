@@ -1126,13 +1126,18 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     add_int16 msg (List.length types);
     List.iter (add_int32 msg) types;
     send_message conn msg >>= fun () ->
-    flush_msg conn >>= fun () ->
+
+    (* Sync *)
+    let msg = new_message 'S' in
+    send_message conn msg >>= fun () ->
+
     let rec loop () =
       receive_message conn >>= fun msg ->
       let msg = parse_backend_message msg in
       match msg with
       | ErrorResponse err -> pg_error ~sync:true ~conn err
-      | ParseComplete -> return () (* Finished! *)
+      | ParseComplete -> loop ()
+      | ReadyForQuery _ -> return () (* Finished! *)
       | NoticeResponse _ ->
 	  (* XXX Do or print something here? *)
 	  loop ()
