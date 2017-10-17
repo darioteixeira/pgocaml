@@ -794,6 +794,10 @@ let print_ErrorResponse fields =
     ) fields
   )
 
+let sync_msg conn =
+  let msg = new_message 'S' in
+  send_message conn msg
+
 (* Handle an ErrorResponse anywhere, by printing and raising an exception. *)
 let pg_error ?(sync = false) ?conn fields =
   print_ErrorResponse fields;
@@ -819,8 +823,7 @@ let pg_error ?(sync = false) ?conn fields =
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
        if sync then begin
-         let msg = new_message 'S' in
-         send_message conn msg >>= fun () ->
+         sync_msg conn >>= fun () ->
          loop ()
        end else
          loop ()
@@ -1083,8 +1086,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 let ping conn =
   let do_ping () =
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Wait for ReadyForQuery. *)
     let rec loop () =
@@ -1112,11 +1114,8 @@ type row = result list
 
 let flush_msg conn =
   let msg = new_message 'H' in
-  send_message conn msg >>= fun () ->
-  (* Might as well actually flush the channel too, otherwise what is the
-   * point of executing this command?
-   *)
-  flush conn.chan
+  send_message conn msg
+  (* No need to flush the channel since the callers use receive_message *)
 
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
@@ -1126,11 +1125,7 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     add_int16 msg (List.length types);
     List.iter (add_int32 msg) types;
     send_message conn msg >>= fun () ->
-
-    (* Sync *)
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
-
+    sync_msg conn >>= fun () ->
     let rec loop () =
       receive_message conn >>= fun msg ->
       let msg = parse_backend_message msg in
@@ -1175,8 +1170,7 @@ let iter_execute conn name portal params proc () =
     send_message conn msg >>= fun () ->
 
     (* Sync *)
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Process the message(s) received from the database until we read
      * ReadyForQuery.  In the process we may get some rows back from
@@ -1371,12 +1365,19 @@ type param_description = {
 }
 type params_description = param_description list
 
+let expect_rfq conn ret =
+  receive_message conn >>= fun msg ->
+  match parse_backend_message msg with
+    | ReadyForQuery _ -> return ret
+    | msg -> fail @@
+      Error ("PGOCaml: unknown response from describe: " ^ string_of_msg_t msg)
+
 let describe_statement conn ?(name = "") () =
   let msg = new_message 'D' in
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
@@ -1392,7 +1393,7 @@ let describe_statement conn ?(name = "") () =
 			string_of_msg_t msg))) >>= fun params ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
+  ( match msg with
   | ErrorResponse err -> pg_error ~sync:true ~conn err
   | NoData -> return (params, None)
   | RowDescription fields ->
@@ -1410,17 +1411,17 @@ let describe_statement conn ?(name = "") () =
       return (params, Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 let describe_portal conn ?(portal = "") () =
   let msg = new_message 'D' in
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
+  ( match msg with
   | ErrorResponse err -> pg_error ~sync:true ~conn err
   | NoData -> return None
   | RowDescription fields ->
@@ -1438,7 +1439,7 @@ let describe_portal conn ?(portal = "") () =
       return (Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 (*----- Type conversion. -----*)
 
