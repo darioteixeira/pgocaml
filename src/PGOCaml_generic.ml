@@ -799,7 +799,7 @@ let sync_msg conn =
   send_message conn msg
 
 (* Handle an ErrorResponse anywhere, by printing and raising an exception. *)
-let pg_error ?(sync = false) ?conn fields =
+let pg_error ?conn fields =
   print_ErrorResponse fields;
   let str =
     try
@@ -822,10 +822,6 @@ let pg_error ?(sync = false) ?conn fields =
 	 let msg = parse_backend_message msg in
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
-       if sync then begin
-         sync_msg conn >>= fun () ->
-         loop ()
-       end else
          loop ()
   ) >>= fun () ->
 
@@ -1112,11 +1108,6 @@ type param = string option
 type result = string option
 type row = result list
 
-let flush_msg conn =
-  let msg = new_message 'H' in
-  send_message conn msg
-  (* No need to flush the channel since the callers use receive_message *)
-
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
     let msg = new_message 'P' in
@@ -1130,7 +1121,7 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
       receive_message conn >>= fun msg ->
       let msg = parse_backend_message msg in
       match msg with
-      | ErrorResponse err -> pg_error ~sync:true ~conn err
+      | ErrorResponse err -> pg_error ~conn err
       | ParseComplete -> loop ()
       | ReadyForQuery _ -> return () (* Finished! *)
       | NoticeResponse _ ->
@@ -1305,13 +1296,14 @@ let close_statement conn ?(name = "") () =
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return () (* Finished! *)
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1326,13 +1318,14 @@ let close_portal conn ?(portal = "") () =
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return ()
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1381,7 +1374,7 @@ let describe_statement conn ?(name = "") () =
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
-    | ErrorResponse err -> pg_error ~sync:true ~conn err
+    | ErrorResponse err -> pg_error ~conn err
     | ParameterDescription params ->
 	let params = List.map (
 	  fun oid ->
@@ -1394,7 +1387,7 @@ let describe_statement conn ?(name = "") () =
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return (params, None)
   | RowDescription fields ->
       let fields = List.map (
@@ -1422,7 +1415,7 @@ let describe_portal conn ?(portal = "") () =
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return None
   | RowDescription fields ->
       let fields = List.map (
