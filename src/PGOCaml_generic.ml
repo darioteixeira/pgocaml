@@ -1026,32 +1026,16 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
     | Some desc -> desc
   in
   (* Make the socket address. *)
-  let sockaddr =
+  let sockaddrs =
     match host with
     | `Hostname hostname ->
-        (try
-            let hostent = Unix.gethostbyname hostname in
-            let domain = hostent.Unix.h_addrtype in
-            match domain with
-            | Unix.PF_INET | Unix.PF_INET6 ->
-                (* Choose a random address from the list. *)
-                let addrs = hostent.Unix.h_addr_list in
-                let len = Array.length addrs in
-                if len <= 0 then
-            raise (Error ("PGOCaml: unknown host: " ^ hostname));
-                let i = Random.int len in
-                let addr = addrs.(i) in
-                Unix.ADDR_INET (addr, port)
-            | Unix.PF_UNIX ->
-                (* Would we trust a pathname returned through DNS? *)
-                raise (Error "PGOCaml: DNS returned PF_UNIX record")
-          with
-            Not_found ->
-              raise (Error ("PGOCaml: unknown host: " ^ hostname))
-        );
+       let addrs = Unix.getaddrinfo hostname (sprintf "%d" port) [Unix.AI_SOCKTYPE(Unix.SOCK_STREAM)] in
+       if addrs = [] then 
+	 raise (Error ("PGOCaml: unknown host: " ^ hostname))
+       else
+	 List.map (fun {Unix.ai_addr = sockaddr; _} -> sockaddr) addrs
     | `Unix_domain_socket_dir udsd -> (* Unix domain socket. *)
-      pgsql_socket udsd port
-  in
+      [pgsql_socket udsd port] in
 
   (* Create a universally unique identifier for this connection.  This
    * is mainly for debugging and profiling.
@@ -1075,8 +1059,20 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
       ((Unix.times ()).Unix.tms_utime) in
   let uuid = Digest.to_hex (Digest.string uuid) in
 
+  let sock_channels =
+    let rec create_sock_channels sockaddrs =
+      match sockaddrs with
+	[] -> 
+	  raise (Error ("PGOCaml: Could not connect to database"))
+      | sockaddr :: sockaddrs ->
+	 try
+	   open_connection sockaddr 
+	 with
+	   Unix.Unix_error _ -> create_sock_channels sockaddrs in
+    create_sock_channels sockaddrs in
+    
   let do_connect () =
-    open_connection sockaddr >>= fun (ichan, chan) ->
+    sock_channels >>= fun (ichan, chan) ->
     catch (fun () ->
     (* Create the connection structure. *)
     let conn = { ichan = ichan;
