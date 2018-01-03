@@ -276,6 +276,7 @@ type int32_array = int32 option list
 type int64_array = int64 option list
 type string_array = string option list
 type float_array = float option list
+type timestamp_array = Calendar.t option list
 
 (** The following conversion functions are used by pa_pgsql to convert
   * values in and out of the database.
@@ -309,6 +310,7 @@ val string_of_int64_array : int64_array -> string
 val string_of_string_array : string_array -> string
 val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
+val string_of_timestamp_array : timestamp_array -> string
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -336,6 +338,7 @@ val int32_array_of_string : string -> int32_array
 val int64_array_of_string : string -> int64_array
 val string_array_of_string : string -> string_array
 val float_array_of_string : string -> float_array
+val timestamp_array_of_string : string -> timestamp_array
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
@@ -1470,6 +1473,7 @@ let name_of_type ?modifier = function
   | 1082_l -> "date"         (* DATE *)
   | 1083_l -> "time"         (* TIME *)
   | 1114_l -> "timestamp"    (* TIMESTAMP *)
+  | 1115_l -> "timestamp_array" (* TIMESTAMP[] *)
   | 1184_l -> "timestamptz"  (* TIMESTAMP WITH TIME ZONE *)
   | 1186_l -> "interval"     (* INTERVAL *)
   | 2278_l -> "unit"         (* VOID *)
@@ -1496,6 +1500,7 @@ type int32_array = int32 option list
 type int64_array = int64 option list
 type string_array = string option list
 type float_array = float option list
+type timestamp_array = Calendar.t option list
 
 let string_of_hstore hstore =
   let string_of_quoted str = "\"" ^ str ^ "\"" in
@@ -1593,6 +1598,7 @@ let string_of_int32_array a = string_of_any_array (List.map (option_map Int32.to
 let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to_string) a)
 let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
+let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
 
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
@@ -1799,6 +1805,7 @@ let int32_array_of_string str = List.map (option_map Int32.of_string) (any_array
 let int64_array_of_string str = List.map (option_map Int64.of_string) (any_array_of_string str)
 let string_array_of_string str = any_array_of_string str
 let float_array_of_string str = List.map (option_map float_of_string) (any_array_of_string str)
+let timestamp_array_of_string str = List.map (option_map timestamp_of_string) (any_array_of_string str)
 
 let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'
