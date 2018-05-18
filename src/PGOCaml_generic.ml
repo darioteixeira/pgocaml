@@ -770,20 +770,52 @@ let parse_backend_message (typ, msg) =
 
 let verbose = ref 1
 
+type severity = ERROR | FATAL | PANIC | WARNING | NOTICE | DEBUG | INFO | LOG
+
+let get_severity fields =
+  let field =
+    try List.assoc 'V' fields (* introduced with PostgreSQL 9.6 *)
+    with Not_found -> List.assoc 'S' fields
+  in
+  match field with
+  | "ERROR" -> ERROR
+  | "FATAL" -> FATAL
+  | "PANIC" -> PANIC
+  | "WARNING" -> WARNING
+  | "NOTICE" -> NOTICE
+  | "DEBUG" -> DEBUG
+  | "INFO" -> INFO
+  | "LOG" -> LOG
+  | _ -> raise Not_found
+
+let show_severity = function
+  | ERROR -> "ERROR"
+  | FATAL -> "FATAL"
+  | PANIC -> "PANIC"
+  | WARNING -> "WARNING"
+  | NOTICE -> "NOTICE"
+  | DEBUG -> "DEBUG"
+  | INFO -> "INFO"
+  | LOG -> "LOG"
+
 (* Print an ErrorResponse on stderr. *)
 let print_ErrorResponse fields =
   if !verbose >= 1 then (
     try
-      let severity = List.assoc 'S' fields in
+      let severity = try Some (get_severity fields) with Not_found -> None in
+      let severity_string = match severity with
+        | Some s -> show_severity s
+        | None -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
       if !verbose = 1 then
 	match severity with
-	| "ERROR" | "FATAL" | "PANIC" ->
-	    eprintf "%s: %s: %s\n%!" severity code message
+	| Some ERROR | Some FATAL | Some PANIC ->
+	    eprintf "%s: %s: %s\n%!" severity_string code message
 	| _ -> ()
       else
-	eprintf "%s: %s: %s\n%!" severity code message
+	eprintf "%s: %s: %s\n%!" severity_string code message
     with
       Not_found ->
 	eprintf
@@ -806,10 +838,13 @@ let pg_error ?conn fields =
   print_ErrorResponse fields;
   let str =
     try
-      let severity = List.assoc 'S' fields in
+      let severity_string =
+        try show_severity @@ get_severity fields
+        with Not_found -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
-      sprintf "%s: %s: %s" severity code message
+      sprintf "%s: %s: %s" severity_string code message
     with
       Not_found ->
 	"WARNING: 'Always present' field is missing in error message" in
