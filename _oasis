@@ -20,7 +20,7 @@ Flag "p4"
 
 Flag "ppx"
   Description:          PG'OCaml syntax extension (PPX version)
-  Default:              false
+  Default:              true
 
 Library "pgocaml"
   Path:                 src
@@ -117,4 +117,4 @@ Test "pgocaml_highlevel"
 Test "test_re"
   Command:              $test_re
   WorkingDirectory:     tests
- 
+
