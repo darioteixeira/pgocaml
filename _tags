@@ -1,4 +1,128 @@
 # OASIS_START
+# DO NOT EDIT (digest: 688688d995b12dc9a5b4e3cecabbb8a0)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library pgocaml
+"src/pgocaml.cmxs": use_pgocaml
+# Library pa_pgsql
+"src/pa_pgsql.cmxs": use_pa_pgsql
+<src/*.ml{,i,y}>: pkg_bytes
+<src/*.ml{,i,y}>: pkg_calendar
+<src/*.ml{,i,y}>: pkg_camlp4.extend
+<src/*.ml{,i,y}>: pkg_camlp4.quotations
+<src/*.ml{,i,y}>: pkg_csv
+<src/*.ml{,i,y}>: pkg_hex
+<src/*.ml{,i,y}>: pkg_re
+<src/*.ml{,i,y}>: pkg_unix
+<src/*.ml{,i,y}>: use_pgocaml
+# Library ppx_pgsql
+"ppx/ppx_pgsql.cmxs": use_ppx_pgsql
+# Executable ppx_pgsql
+"ppx/ppx_pgsql.byte": pkg_bytes
+"ppx/ppx_pgsql.byte": pkg_calendar
+"ppx/ppx_pgsql.byte": pkg_compiler-libs.common
+"ppx/ppx_pgsql.byte": pkg_csv
+"ppx/ppx_pgsql.byte": pkg_hex
+"ppx/ppx_pgsql.byte": pkg_ppx_tools.metaquot
+"ppx/ppx_pgsql.byte": pkg_re
+"ppx/ppx_pgsql.byte": pkg_unix
+"ppx/ppx_pgsql.byte": use_pgocaml
+<ppx/*.ml{,i,y}>: pkg_bytes
+<ppx/*.ml{,i,y}>: pkg_calendar
+<ppx/*.ml{,i,y}>: pkg_compiler-libs.common
+<ppx/*.ml{,i,y}>: pkg_csv
+<ppx/*.ml{,i,y}>: pkg_hex
+<ppx/*.ml{,i,y}>: pkg_ppx_tools.metaquot
+<ppx/*.ml{,i,y}>: pkg_re
+<ppx/*.ml{,i,y}>: pkg_unix
+<ppx/*.ml{,i,y}>: use_pgocaml
+# Executable pgocaml_prof
+"utils/pgocaml_prof.byte": pkg_bytes
+"utils/pgocaml_prof.byte": pkg_calendar
+"utils/pgocaml_prof.byte": pkg_csv
+"utils/pgocaml_prof.byte": pkg_hex
+"utils/pgocaml_prof.byte": pkg_re
+"utils/pgocaml_prof.byte": pkg_unix
+"utils/pgocaml_prof.byte": use_pgocaml
+<utils/*.ml{,i,y}>: pkg_bytes
+<utils/*.ml{,i,y}>: pkg_calendar
+<utils/*.ml{,i,y}>: pkg_csv
+<utils/*.ml{,i,y}>: pkg_hex
+<utils/*.ml{,i,y}>: pkg_re
+<utils/*.ml{,i,y}>: pkg_unix
+<utils/*.ml{,i,y}>: use_pgocaml
+# Executable test_pgocaml_lowlevel
+"tests/test_pgocaml_lowlevel.byte": pkg_bytes
+"tests/test_pgocaml_lowlevel.byte": pkg_calendar
+"tests/test_pgocaml_lowlevel.byte": pkg_csv
+"tests/test_pgocaml_lowlevel.byte": pkg_hex
+"tests/test_pgocaml_lowlevel.byte": pkg_re
+"tests/test_pgocaml_lowlevel.byte": pkg_unix
+"tests/test_pgocaml_lowlevel.byte": use_pgocaml
+# Executable test_pgocaml_highlevel
+"tests/test_pgocaml_highlevel.byte": pkg_bytes
+"tests/test_pgocaml_highlevel.byte": pkg_calendar
+"tests/test_pgocaml_highlevel.byte": pkg_camlp4.extend
+"tests/test_pgocaml_highlevel.byte": pkg_camlp4.quotations
+"tests/test_pgocaml_highlevel.byte": pkg_csv
+"tests/test_pgocaml_highlevel.byte": pkg_hex
+"tests/test_pgocaml_highlevel.byte": pkg_re
+"tests/test_pgocaml_highlevel.byte": pkg_unix
+"tests/test_pgocaml_highlevel.byte": use_pa_pgsql
+"tests/test_pgocaml_highlevel.byte": use_pgocaml
+<tests/*.ml{,i,y}>: pkg_camlp4.extend
+<tests/*.ml{,i,y}>: pkg_camlp4.quotations
+<tests/*.ml{,i,y}>: use_pa_pgsql
+# Executable test_re
+"tests/test_re.byte": pkg_bytes
+"tests/test_re.byte": pkg_calendar
+"tests/test_re.byte": pkg_csv
+"tests/test_re.byte": pkg_hex
+"tests/test_re.byte": pkg_oUnit
+"tests/test_re.byte": pkg_re
+"tests/test_re.byte": pkg_unix
+"tests/test_re.byte": use_pgocaml
+<tests/*.ml{,i,y}>: pkg_bytes
+<tests/*.ml{,i,y}>: pkg_calendar
+<tests/*.ml{,i,y}>: pkg_csv
+<tests/*.ml{,i,y}>: pkg_hex
+<tests/*.ml{,i,y}>: pkg_oUnit
+<tests/*.ml{,i,y}>: pkg_re
+<tests/*.ml{,i,y}>: pkg_unix
+<tests/*.ml{,i,y}>: use_pgocaml
+# Executable test_ppx
+"tests_ppx/test_ppx.byte": pkg_bytes
+"tests_ppx/test_ppx.byte": pkg_calendar
+"tests_ppx/test_ppx.byte": pkg_compiler-libs.common
+"tests_ppx/test_ppx.byte": pkg_csv
+"tests_ppx/test_ppx.byte": pkg_hex
+"tests_ppx/test_ppx.byte": pkg_oUnit
+"tests_ppx/test_ppx.byte": pkg_ppx_tools.metaquot
+"tests_ppx/test_ppx.byte": pkg_re
+"tests_ppx/test_ppx.byte": pkg_unix
+"tests_ppx/test_ppx.byte": use_pgocaml
+<tests_ppx/*.ml{,i,y}>: pkg_bytes
+<tests_ppx/*.ml{,i,y}>: pkg_calendar
+<tests_ppx/*.ml{,i,y}>: pkg_compiler-libs.common
+<tests_ppx/*.ml{,i,y}>: pkg_csv
+<tests_ppx/*.ml{,i,y}>: pkg_hex
+<tests_ppx/*.ml{,i,y}>: pkg_oUnit
+<tests_ppx/*.ml{,i,y}>: pkg_ppx_tools.metaquot
+<tests_ppx/*.ml{,i,y}>: pkg_re
+<tests_ppx/*.ml{,i,y}>: pkg_unix
+<tests_ppx/*.ml{,i,y}>: use_pgocaml
 # OASIS_STOP
 <src/pa_pgsql.ml>: syntax_camlp4o
 <tests/test_pgocaml_highlevel.ml>: syntax_camlp4o, pkg_pgocaml.syntax
