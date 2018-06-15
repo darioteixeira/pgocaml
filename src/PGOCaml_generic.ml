@@ -1098,12 +1098,20 @@ let connect ?host ?port ?user ?password ?database
 
 let close conn =
   let do_close () =
-    (* Be nice and send the terminate message. *)
-    let msg = new_message 'X' in
-    send_message conn msg >>= fun () ->
-    flush conn.chan >>= fun () ->
+    catch
+      (fun () ->
+         (* Be nice and send the terminate message. *)
+         let msg = new_message 'X' in
+         send_message conn msg >>= fun () ->
+         flush conn.chan >>= fun () ->
+         return None)
+      (fun e ->
+         return (Some e)) >>= fun e ->
     (* Closes the underlying socket too. *)
-    close_in conn.ichan
+    close_in conn.ichan >>= fun () ->
+    match e with
+    | None   -> return ()
+    | Some e -> fail e
   in
   profile_op conn.uuid "close" [] do_close
 
