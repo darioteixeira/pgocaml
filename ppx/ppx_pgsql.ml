@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  *)
 
+Printexc.record_backtrace true
+
 open PGOCaml_aux
 open Printf
 
@@ -116,7 +118,7 @@ let unravel_type dbh orig_type =
 
 (* Return the list of numbers a <= i < b. *)
 let rec range a b =
-  if a < b then a :: range (a+1) b else [];;
+  if a < b then a :: range (a+1) b else []
 
 let rex =
     let open Re in
@@ -481,7 +483,7 @@ let pgocaml_mapper _argv =
                 { expr with
                   pexp_desc = Pexp_extension (
                       extension_of_error @@
-                      Location.error ~loc (Printf.sprintf "aiee: %s" (Printexc.to_string exn))
+                      Location.error ~loc (Printf.sprintf "aiee: problem %s" (Printexc.to_string exn))
                     )
                 }
             )
@@ -494,4 +496,19 @@ let pgocaml_mapper _argv =
         default_mapper.expr mapper other
   }
 
-let _ = register "pgocaml" pgocaml_mapper
+let dummy_mapper _argv =
+  { default_mapper with
+    expr = fun mapper expr ->
+      match expr with
+      | { pexp_desc =
+            Pexp_extension (
+              { txt = "pgsql"; loc },
+              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
+            )} ->
+        [%expr ()]
+      | _ ->
+        default_mapper.expr mapper expr
+  }
+
+let _ =
+    register "pgocaml" pgocaml_mapper
