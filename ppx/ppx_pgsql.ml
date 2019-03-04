@@ -47,7 +47,7 @@ type key = {
   unix_domain_socket_dir : string option;
 }
 
-let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 13
+let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 
 let get_connection key =
   try
@@ -202,7 +202,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
   let (params, results), varmap =
     (* Rebuild the query with $n placeholders for each variable. *)
     let next = let i = ref 0 in fun () -> incr i; !i in
-    let varmap = Hashtbl.create 7 in
+    let varmap = Hashtbl.create 8 in
     let query = String.concat "" (
         List.map (
           function
@@ -475,6 +475,17 @@ let pgocaml_mapper _argv =
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
+            let f = open_out_gen [Open_creat; Open_trunc; Open_append; Open_text] 0o666 "/home/chrismamo1/log.txt" in
+            let cook = get_cookie "killme" in
+            let cook =
+              match cook with
+              | Some({pexp_desc = Pexp_constant(Pconst_string(cook, _))}) -> cook
+              | None -> "-1"
+            in
+            let line_num = expr.pexp_loc.loc_start.pos_lnum in
+            let line = Printf.sprintf "Line: %d, cookie: %s\n" line_num cook in
+            let () = set_cookie "killme" {pexp_desc = Pexp_constant(Pconst_string ((string_of_int line_num), None)); pexp_loc = expr.pexp_loc; pexp_attributes = []} in
+            let () = output_string f line in
             ( try
                 expand_sql loc dbh args
               with exn ->
