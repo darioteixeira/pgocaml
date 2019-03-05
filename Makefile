@@ -43,5 +43,5 @@ configure:
 DIR=$(if $(wildcard /var/run/postgresql),"/var/run/postgresql","/tmp")
 
 config:
-	echo "let default_unix_domain_socket_dir = \"$(DIR)\"" > src/PGOCaml_config.ml
+	echo "let default_unix_domain_socket_dir = \"$(DIR)\"" >> src/PGOCaml_config.ml
 

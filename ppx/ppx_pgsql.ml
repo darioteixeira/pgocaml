@@ -37,49 +37,43 @@ let typname_name = "typname"
  * database (as controlled by environment variables such as $PGHOST,
  * $PGDATABASE, etc.)
  *)
-type key = {
-  (* None in any of these fields means use the default. *)
-  host : string option;
-  port : int option;
-  user : string option;
-  password : string option;
-  database : string option;
-  unix_domain_socket_dir : string option;
-}
+type key = PGOCaml.connection_desc
 
 let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 
+(** [get_connection key] Find the database connection specified by [key],
+  *  otherwise attempt to create a new one from [key] and return that (or an
+  *  error).
+  *)
 let get_connection key =
-  try
-    Hashtbl.find connections key
-  with
-    Not_found ->
+  match Hashtbl.find_opt connections key with
+  | Some connection ->
+      let open Rresult in
+      Ok connection
+  | None ->
       (* Create a new connection. *)
-      let host = key.host in
-      let port = key.port in
-      let user = key.user in
-      let password = key.password in
-      let database = key.database in
-      let unix_domain_socket_dir = key.unix_domain_socket_dir in
-      let dbh =
-        PGOCaml.connect
-          ?host ?port ?user ?password ?database
-          ?unix_domain_socket_dir () in
+      try
+        let dbh = PGOCaml.connect ~desc:key () in
+        (* Prepare the nullable test - see result conversions below. *)
+        let nullable_query = "select attnotnull from pg_attribute where attrelid = $1 and attnum = $2" in
+        PGOCaml.prepare dbh ~query:nullable_query ~name:nullable_name ();
 
-      (* Prepare the nullable test - see result conversions below. *)
-      let nullable_query = "select attnotnull from pg_attribute where attrelid = $1 and attnum = $2" in
-      PGOCaml.prepare dbh ~query:nullable_query ~name:nullable_name ();
+        (* Prepare the unravel test. *)
+        let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
+        PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
-      (* Prepare the unravel test. *)
-      let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
-      PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
+        (* Prepare the type name query. *)
+        let typname_query = "select typname from pg_type where oid = $1" in
+        PGOCaml.prepare dbh ~query:typname_query ~name:typname_name ();
 
-      (* Prepare the type name query. *)
-      let typname_query = "select typname from pg_type where oid = $1" in
-      PGOCaml.prepare dbh ~query:typname_query ~name:typname_name ();
-
-      Hashtbl.add connections key dbh;
-      dbh
+        Hashtbl.add connections key dbh;
+        Rresult.Ok dbh
+      with
+        | err ->
+          Error ("Could not make the connection "
+            ^ PGOCaml.connection_desc_to_string key
+            ^ ", error: "
+            ^ Printexc.to_string err)
 
 (* Wrapper around [PGOCaml.name_of_type].
 *)
@@ -142,35 +136,38 @@ let expr_of_exprs exprs =
     exprs
     [%expr []]
 
-let pgsql_expand ?(flags = []) loc dbh query =
+let parse_flags flags loc =
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
-  let key = ref { host = None; port = None; user = None;
-                  password = None; database = None;
-                  unix_domain_socket_dir = None } in
+  let host = ref None in
+  let port = ref None in
+  let user = ref None in
+  let password = ref None in
+  let database = ref None in
+  let unix_domain_socket_dir = ref None in
   List.iter (
     function
     | "execute" -> f_execute := true
     | "nullable-results" -> f_nullable_results := true
     | str when String.starts_with str "host=" ->
-        let host = String.sub str 5 (String.length str - 5) in
-        key := { !key with host = Some host }
+        let host' = String.sub str 5 (String.length str - 5) in
+        host := Some host'
     | str when String.starts_with str "port=" ->
-        let port = int_of_string (String.sub str 5 (String.length str - 5)) in
-        key := { !key with port = Some port }
+        let port' = int_of_string (String.sub str 5 (String.length str - 5)) in
+        port := Some port'
     | str when String.starts_with str "user=" ->
-        let user = String.sub str 5 (String.length str - 5) in
-        key := { !key with user = Some user }
+        let user' = String.sub str 5 (String.length str - 5) in
+        user := Some user'
     | str when String.starts_with str "password=" ->
-        let password = String.sub str 9 (String.length str - 9) in
-        key := { !key with password = Some password }
+        let password' = String.sub str 9 (String.length str - 9) in
+        password := Some password'
     | str when String.starts_with str "database=" ->
-        let database = String.sub str 9 (String.length str - 9) in
-        key := { !key with database = Some database }
+        let database' = String.sub str 9 (String.length str - 9) in
+        database := Some database'
     | str when String.starts_with str "unix_domain_socket_dir=" ->
         let socket = String.sub str 23 (String.length str - 23) in
-        key := { !key with unix_domain_socket_dir = Some socket }
+        unix_domain_socket_dir := Some socket
     | str ->
       loc_raise loc (
         Failure ("Unknown flag: " ^ str)
@@ -178,10 +175,21 @@ let pgsql_expand ?(flags = []) loc dbh query =
     ) flags;
   let f_execute = !f_execute in
   let f_nullable_results = !f_nullable_results in
-  let key = !key in
-  (* Connect, if necessary, to the database. *)
-  let my_dbh = get_connection key in
+  let host = !host in
+  let user = !user in
+  let password = !password in
+  let database = !database in
+  let port = !port in
+  let unix_domain_socket_dir = !unix_domain_socket_dir in
+  let key = PGOCaml.describe_connection ?host ?user ?password ?database ?port ?unix_domain_socket_dir () in
+  key, f_execute, f_nullable_results
 
+let pgsql_expand ?(flags = []) loc dbh query =
+  let open Rresult in
+  let (key, f_execute, f_nullable_results) = parse_flags flags loc in
+  (* Connect, if necessary, to the database. *)
+  get_connection key
+  >>= fun my_dbh ->
   (* Split the query into text and variable name parts using Re.split_full.
    * eg. "select id from employees where name = $name and salary > $salary"
    * would become a structure equivalent to:
@@ -399,7 +407,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
       | [a] -> a
       | conversions -> Exp.tuple conversions
     in
-    [%expr
+    Ok [%expr
       PGOCaml.bind [%e expr] (fun _rows ->
           PGOCaml.return
             (let original_query = [%e const_string ~loc query] in
@@ -426,7 +434,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
              ) _rows))
     ]
   | None ->
-    [%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())]
+    Ok [%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())]
 
 let expand_sql loc dbh extras =
      let query, flags =
@@ -438,17 +446,17 @@ let expand_sql loc dbh extras =
 (* Returns the empty list if one of the elements is not a string constant *)
 let list_of_string_args mapper args =
   let maybe_strs =
-  List.map
-    (function
-      | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None))})
-        -> Some str
-      | (_, other) ->
-        match mapper other with
-        | {pexp_desc = Pexp_constant (Pconst_string (str, None))}
+    List.map
+      (function
+        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None))})
           -> Some str
-        | _ -> None
-    )
-    args
+        | (_, other) ->
+          match mapper other with
+          | {pexp_desc = Pexp_constant (Pconst_string (str, None))}
+            -> Some str
+          | _ -> None
+      )
+      args
   in
   if List.mem None maybe_strs then
     []
@@ -475,25 +483,14 @@ let pgocaml_mapper _argv =
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
-            let f = open_out_gen [Open_creat; Open_trunc; Open_append; Open_text] 0o666 "/home/chrismamo1/log.txt" in
-            let cook = get_cookie "killme" in
-            let cook =
-              match cook with
-              | Some({pexp_desc = Pexp_constant(Pconst_string(cook, _))}) -> cook
-              | None -> "-1"
-            in
-            let line_num = expr.pexp_loc.loc_start.pos_lnum in
-            let line = Printf.sprintf "Line: %d, cookie: %s\n" line_num cook in
-            let () = set_cookie "killme" {pexp_desc = Pexp_constant(Pconst_string ((string_of_int line_num), None)); pexp_loc = expr.pexp_loc; pexp_attributes = []} in
-            let () = output_string f line in
-            ( try
-                expand_sql loc dbh args
-              with exn ->
+            ( match expand_sql loc dbh args with
+              | Rresult.Ok x ->
+                x
+              | Error s ->
                 { expr with
                   pexp_desc = Pexp_extension (
-                      extension_of_error @@
-                      Location.error ~loc (Printf.sprintf "aiee: %s" (Printexc.to_string exn))
-                    )
+                    extension_of_error @@
+                    Location.error ~loc s)
                 }
             )
         )
