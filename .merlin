@@ -5,6 +5,7 @@ PKG re
 PKG unix
 PKG compiler-libs
 PKG ppx_tools.metaquot
+PKG rresult
 
 S src
 S tests

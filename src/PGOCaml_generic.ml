@@ -66,7 +66,26 @@ exception PostgreSQL_Error of string * (char * string) list
 
 (** {6 Connection management} *)
 
-val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> 'a t monad
+type connection_desc = {
+  user: string;
+  port: int;
+  password: string;
+  host: [ `Hostname of string | `Unix_domain_socket_dir of string];
+  database: string
+}
+
+val describe_connection : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> connection_desc
+(** Produce the actual, concrete connection parameters based on the values and
+  * availability of the various configuration variables.
+  *)
+
+val connection_desc_to_string : connection_desc -> string
+(** Produce a human-readable textual representation of a concrete connection
+  * descriptor (the password is NOT included in the output of this function)
+  * for logging and error reporting purposes.
+  *)
+
+val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> ?desc:connection_desc -> unit -> 'a t monad
 (** Connect to the database.  The normal [$PGDATABASE], etc. environment
   * variables are available.
   *)
@@ -348,6 +367,14 @@ end
 module Make (Thread : THREAD) = struct
 
 open Thread
+
+type connection_desc = {
+  user: string;
+  port: int;
+  password: string;
+  host: [ `Hostname of string | `Unix_domain_socket_dir of string];
+  database: string
+}
 
 type 'a t = {
   ichan : in_channel;			(* In_channel wrapping socket. *)
@@ -921,82 +948,112 @@ let pgsql_socket dir port =
   let sockaddr = sprintf "%s/.s.PGSQL.%d" dir port in
   Unix.ADDR_UNIX sockaddr
 
-let connect ?host ?port ?user ?password ?database
-    ?(unix_domain_socket_dir = PGOCaml_config.default_unix_domain_socket_dir)
+let describe_connection ?host ?port ?user ?password ?database
+    ?(unix_domain_socket_dir)
     () =
   (* Get the username. *)
   let user =
     match user with
     | Some user -> user
     | None ->
-	try Sys.getenv "PGUSER"
-	with Not_found ->
-	  try
-	    let pw = Unix.getpwuid (Unix.geteuid ()) in
-	    pw.Unix.pw_name
-	  with
-	    Not_found -> "postgres" in
+      try Sys.getenv "PGUSER"
+      with Not_found ->
+        try
+          let pw = Unix.getpwuid (Unix.geteuid ()) in
+          pw.Unix.pw_name
+        with
+          Not_found -> PGOCaml_config.default_user
+  in
 
   (* Get the password. *)
   let password =
     match password with
     | Some password -> password
     | None ->
-       try Sys.getenv "PGPASSWORD"
-       with Not_found -> "" in
+      try Sys.getenv "PGPASSWORD"
+      with Not_found -> PGOCaml_config.default_password in
 
   (* Get the database name. *)
   let database =
     match database with
     | Some database -> database
     | None ->
-	try Sys.getenv "PGDATABASE"
-	with Not_found -> user in
+      try Sys.getenv "PGDATABASE"
+      with Not_found -> user in
 
   (* Hostname and port number. *)
   let host =
-    match host with
-    | Some _ -> host
-    | None ->
-	try Some (Sys.getenv "PGHOST")
-	with Not_found -> None in (* use Unix domain socket. *)
+    match (host, unix_domain_socket_dir) with
+    | (Some _), (Some _) ->
+      raise (Failure "describe_connection: it's invalid to specify both a HOST and a unix domain socket directory")
+    | (Some s), None when String.length s > 0 && String.get s 0 = '/' ->
+      `Unix_domain_socket_dir s
+    | (Some s), None ->
+      `Hostname s
+    | None, (Some s) ->
+      `Unix_domain_socket_dir s
+    | None, None ->
+      try
+        `Hostname (Sys.getenv "PGHOST")
+      with
+        Not_found -> (* fall back on Unix domain socket. *)
+          `Unix_domain_socket_dir PGOCaml_config.default_unix_domain_socket_dir
+  in
 
   let port =
     match port with
     | Some port -> port
     | None ->
-	try int_of_string (Sys.getenv "PGPORT")
-	with Not_found | Failure _ -> 5432 in
+	    try int_of_string (Sys.getenv "PGPORT")
+	    with Not_found | Failure _ -> PGOCaml_config.default_port
+  in
+  { user; host; port; database; password }
 
+(** We need to convert keys to a human-readable format for error reporting.
+  *)
+let connection_desc_to_string key =
+  Printf.sprintf
+    "host=%s, port=%s, user=%s, password=%s, database=%s"
+    (match key.host with `Unix_domain_socket_dir _ -> "unix" | `Hostname s -> s)
+    (string_of_int key.port)
+    key.user
+    "*****" (** we don't want to be dumping passwords into error logs *)
+    key.database
+
+let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
+    () =
+  let { user; host; port; database; password } =
+    match desc with
+    | None -> describe_connection ?host ?port ?user ?password ?database ?unix_domain_socket_dir ()
+    | Some desc -> desc
+  in
   (* Make the socket address. *)
   let sockaddr =
     match host with
-    | Some h when
-        String.length h > 0 && String.get h 0 = '/' ->
-      pgsql_socket h port
-    | Some hostname ->
-	(try
-	   let hostent = Unix.gethostbyname hostname in
-	   let domain = hostent.Unix.h_addrtype in
-	   match domain with
-	   | Unix.PF_INET | Unix.PF_INET6 ->
-	       (* Choose a random address from the list. *)
-	       let addrs = hostent.Unix.h_addr_list in
-	       let len = Array.length addrs in
-	       if len <= 0 then
-		 raise (Error ("PGOCaml: unknown host: " ^ hostname));
-	       let i = Random.int len in
-	       let addr = addrs.(i) in
-	       Unix.ADDR_INET (addr, port)
-	   | Unix.PF_UNIX ->
-	       (* Would we trust a pathname returned through DNS? *)
-	       raise (Error "PGOCaml: DNS returned PF_UNIX record")
-	 with
-	   Not_found ->
-	     raise (Error ("PGOCaml: unknown host: " ^ hostname))
-	);
-    | None -> (* Unix domain socket. *)
-      pgsql_socket unix_domain_socket_dir port in
+    | `Hostname hostname ->
+      (try
+        let hostent = Unix.gethostbyname hostname in
+        let domain = hostent.Unix.h_addrtype in
+        match domain with
+        | Unix.PF_INET | Unix.PF_INET6 ->
+            (* Choose a random address from the list. *)
+            let addrs = hostent.Unix.h_addr_list in
+            let len = Array.length addrs in
+            if len <= 0 then
+        raise (Error ("PGOCaml: unknown host: " ^ hostname));
+            let i = Random.int len in
+            let addr = addrs.(i) in
+            Unix.ADDR_INET (addr, port)
+        | Unix.PF_UNIX ->
+            (* Would we trust a pathname returned through DNS? *)
+            raise (Error "PGOCaml: DNS returned PF_UNIX record")
+      with
+        Not_found ->
+          raise (Error ("PGOCaml: unknown host: " ^ hostname))
+      );
+    | `Unix_domain_socket_dir udsd -> (* Unix domain socket. *)
+      pgsql_socket udsd port
+  in
 
   (* Create a universally unique identifier for this connection.  This
    * is mainly for debugging and profiling.
@@ -1090,7 +1147,7 @@ let connect ?host ?port ?user ?password ?database
   let detail = [
     "user"; user;
     "database"; database;
-    "host"; Option.default "unix" host;
+    "host"; begin match host with `Unix_domain_socket_dir _ -> "unix" | `Hostname s -> s end;
     "port"; string_of_int port;
     "prog"; Sys.executable_name
   ] in
