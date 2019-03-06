@@ -17,14 +17,16 @@
  * Boston, MA 02111-1307, USA.
  *)
 
+Printexc.record_backtrace true
+
 open PGOCaml_aux
 open Printf
 
-open Ast_mapper
-open Ast_helper
-open Asttypes
-open Parsetree
-open Longident
+open Migrate_parsetree.OCaml_403.Ast.Ast_mapper
+open Migrate_parsetree.OCaml_403.Ast.Ast_helper
+open Migrate_parsetree.OCaml_403.Ast.Asttypes
+open Migrate_parsetree.OCaml_403.Ast.Parsetree
+open Migrate_parsetree.OCaml_403.Ast.Longident
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -437,11 +439,12 @@ let pgsql_expand ?(flags = []) loc dbh query =
     Ok [%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())]
 
 let expand_sql loc dbh extras =
-     let query, flags =
-       match List.rev extras with
-       | [] -> assert false
-       | query :: flags -> query, flags in
-     pgsql_expand ~flags loc dbh query
+  let query, flags =
+    match List.rev extras with
+    | [] -> assert false
+    | query :: flags -> query, flags in
+  let open Rresult in
+  pgsql_expand ~flags loc dbh query
 
 (* Returns the empty list if one of the elements is not a string constant *)
 let list_of_string_args mapper args =
@@ -478,14 +481,14 @@ let pgocaml_mapper _argv =
       | { pexp_desc =
             Pexp_extension (
               { txt = "pgsql"; loc },
-              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args)}, _)}]
+              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc}, _)}]
             )} ->
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
             ( match expand_sql loc dbh args with
-              | Rresult.Ok x ->
-                x
+              | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
+                {pexp_desc; pexp_loc = qloc; pexp_attributes}
               | Error s ->
                 { expr with
                   pexp_desc = Pexp_extension (
@@ -502,4 +505,10 @@ let pgocaml_mapper _argv =
         default_mapper.expr mapper other
   }
 
-let _ = register "pgocaml" pgocaml_mapper
+let migration =
+  Migrate_parsetree.(Versions.migrate Versions.ocaml_403 Versions.ocaml_current)
+
+let _ =
+  Migrate_parsetree.Compiler_libs.Ast_mapper.register
+    "pgocaml"
+    (fun args -> migration.copy_mapper (pgocaml_mapper args))

@@ -1,0 +1,4 @@
+let default_port = DEFAULT_PORT
+let default_user = DEFAULT_USER
+let default_password = DEFAULT_PASSWORD
+let default_unix_domain_socket_dir = DEFAULT_UDSD

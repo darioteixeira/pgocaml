@@ -1031,26 +1031,26 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
   let sockaddr =
     match host with
     | `Hostname hostname ->
-      (try
-        let hostent = Unix.gethostbyname hostname in
-        let domain = hostent.Unix.h_addrtype in
-        match domain with
-        | Unix.PF_INET | Unix.PF_INET6 ->
-            (* Choose a random address from the list. *)
-            let addrs = hostent.Unix.h_addr_list in
-            let len = Array.length addrs in
-            if len <= 0 then
-        raise (Error ("PGOCaml: unknown host: " ^ hostname));
-            let i = Random.int len in
-            let addr = addrs.(i) in
-            Unix.ADDR_INET (addr, port)
-        | Unix.PF_UNIX ->
-            (* Would we trust a pathname returned through DNS? *)
-            raise (Error "PGOCaml: DNS returned PF_UNIX record")
-      with
-        Not_found ->
-          raise (Error ("PGOCaml: unknown host: " ^ hostname))
-      );
+        (try
+            let hostent = Unix.gethostbyname hostname in
+            let domain = hostent.Unix.h_addrtype in
+            match domain with
+            | Unix.PF_INET | Unix.PF_INET6 ->
+                (* Choose a random address from the list. *)
+                let addrs = hostent.Unix.h_addr_list in
+                let len = Array.length addrs in
+                if len <= 0 then
+            raise (Error ("PGOCaml: unknown host: " ^ hostname));
+                let i = Random.int len in
+                let addr = addrs.(i) in
+                Unix.ADDR_INET (addr, port)
+            | Unix.PF_UNIX ->
+                (* Would we trust a pathname returned through DNS? *)
+                raise (Error "PGOCaml: DNS returned PF_UNIX record")
+          with
+            Not_found ->
+              raise (Error ("PGOCaml: unknown host: " ^ hostname))
+        );
     | `Unix_domain_socket_dir udsd -> (* Unix domain socket. *)
       pgsql_socket udsd port
   in
