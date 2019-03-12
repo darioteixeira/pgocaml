@@ -25,9 +25,9 @@ Flag "ppx"
 Library "pgocaml"
   Path:                 src
   Modules:              PGOCaml_aux, PGOCaml, PGOCaml_generic, PGOCaml_config
-  BuildDepends:         unix, calendar, csv, re, bytes, hex
+  BuildDepends:         unix, calendar, csv, re, bytes, hex, rresult
   FindlibName:          pgocaml
-  XMETARequires:        unix, calendar, csv, re, bytes, hex
+  XMETARequires:        unix, calendar, csv, re, bytes, hex, rresult
 
 Library "pa_pgsql"
   Path:                 syntax
@@ -48,7 +48,7 @@ Library "ppx_pgsql"
   Modules:              Ppx_pgsql
   Install:              true
   Build$:               flag(ppx)
-  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
+  BuildDepends:         rresult, pgocaml, compiler-libs.common, ppx_tools.metaquot
   CompiledObject:       best
   XMETAType:            syntax
   XMETADescription:     Syntax extension for PG'OCaml using PPX
@@ -59,7 +59,7 @@ Executable "ppx_pgsql"
   Build$:               flag(ppx)
   CompiledObject:       byte
   MainIs:               ppx_pgsql.ml
-  BuildDepends:         pgocaml, compiler-libs.common, ppx_tools.metaquot
+  BuildDepends:         rresult, pgocaml, compiler-libs.common, ppx_tools.metaquot
 
 Document "APIDOC"
   Install:              true
