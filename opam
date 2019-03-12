@@ -28,6 +28,7 @@ depends: [
   "ounit" {test}
   "ppx_tools" {build}
   "re"
+  "rresult" {build}
 ]
 depopts: [ "camlp4" ]
 flags: light-uninstall

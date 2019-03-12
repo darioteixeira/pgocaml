@@ -1,15 +1,15 @@
 # OASIS_START
-# DO NOT EDIT (digest: 4c670934a150eb352eb3ccbce26b73f0)
-version = "3.0"
+# DO NOT EDIT (digest: 276f518cab23fb1df0471c24f6e28740)
+version = "3.0.dev"
 description = "OCaml bindings for the PostgreSQL database"
-requires = "unix calendar csv re bytes hex"
+requires = "unix calendar csv re bytes hex rresult"
 archive(byte) = "pgocaml.cma"
 archive(byte, plugin) = "pgocaml.cma"
 archive(native) = "pgocaml.cmxa"
 archive(native, plugin) = "pgocaml.cmxs"
 exists_if = "pgocaml.cma"
 package "syntax" (
- version = "3.0"
+ version = "3.0.dev"
  description = "Syntax extension for PG'OCaml"
  requires = "pgocaml camlp4"
  archive(syntax, preprocessor) = "pa_pgsql.cma"
@@ -18,9 +18,9 @@ package "syntax" (
 )
 
 package "ppx" (
- version = "2.3"
+ version = "3.0.dev"
  description = "Syntax extension for PG'OCaml using PPX"
- requires = "pgocaml compiler-libs.common ppx_tools.metaquot"
+ requires = "rresult pgocaml compiler-libs.common ppx_tools.metaquot"
  archive(syntax, preprocessor) = "ppx_pgsql.cma"
  archive(syntax, toploop) = "ppx_pgsql.cma"
  archive(syntax, preprocessor, native) = "ppx_pgsql.cmxa"
