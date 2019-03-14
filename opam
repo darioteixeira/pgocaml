@@ -1,6 +1,6 @@
 opam-version: "1.2"
 name: "pgocaml"
-version: "2.3+dev"
+version: "2.3+ppx"
 maintainer: "Dario Teixeira <dario.teixeira@nleyten.com>"
 authors: ["Richard W.M. Jones <rich@annexia.org>"]
 homepage: "http://pgocaml.forge.ocamlcore.org/"
