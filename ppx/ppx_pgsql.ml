@@ -441,7 +441,13 @@ let expand_sql loc dbh extras =
        match List.rev extras with
        | [] -> assert false
        | query :: flags -> query, flags in
-     pgsql_expand ~flags loc dbh query
+     try pgsql_expand ~flags loc dbh query
+     with
+     | Failure s -> Error s
+     | PGOCaml.Error s -> Error s
+     | PGOCaml.PostgreSQL_Error (s, fields) ->
+       let fields' = List.map (fun (c, s) -> Printf.sprintf "(%c: %s)" c s) fields in
+       Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields')
 
 (* Returns the empty list if one of the elements is not a string constant *)
 let list_of_string_args mapper args =
@@ -490,7 +496,8 @@ let pgocaml_mapper _argv =
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc s)
+                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
+                ; pexp_loc = qloc
                 }
             )
         )
