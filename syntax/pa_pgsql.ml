@@ -127,6 +127,7 @@ let pgsql_expand ?(flags = []) _loc dbh query =
   (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
+  let comment_src_loc = ref (PGOCaml.comment_src_loc ()) in
   let key = ref { host = None; port = None; user = None;
 		  password = None; database = None;
 		  unix_domain_socket_dir = None } in
@@ -152,6 +153,13 @@ let pgsql_expand ?(flags = []) _loc dbh query =
     | str when String.starts_with str "unix_domain_socket_dir=" ->
 	let socket = String.sub str 23 (String.length str - 23) in
 	key := { !key with unix_domain_socket_dir = Some socket }
+    | str when String.starts_with str "comment_src_loc=" ->
+  let comment_src_loc' = String.sub str 19 (String.length str - 19) in
+      begin match comment_src_loc' with
+      | "yes" | "1" | "on" -> comment_src_loc := true
+      | "no" | "0" | "off" -> comment_src_loc := false
+      | _ -> Loc.raise _loc (Failure "Unrecognized value for option 'comment_src_loc'")
+      end
     | str ->
 	Loc.raise _loc (
 	  Failure ("Unknown flag: " ^ str)
@@ -159,7 +167,21 @@ let pgsql_expand ?(flags = []) _loc dbh query =
   ) flags;
   let f_execute = !f_execute in
   let f_nullable_results = !f_nullable_results in
+  let comment_src_loc = !comment_src_loc in
   let key = !key in
+  let query =
+    if comment_src_loc
+    then
+      let start = Loc.start_pos _loc in
+      let open Lexing in
+      (Printf.sprintf
+        "-- '%s' L%d\n"
+        start.pos_fname
+        start.pos_lnum)
+      ^ query
+    else
+      query
+  in
 
   (* Connect, if necessary, to the database. *)
   let my_dbh = get_connection key in

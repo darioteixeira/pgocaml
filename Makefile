@@ -49,4 +49,5 @@ config:
 		-e 's/DEFAULT_PORT/5432/' \
 		-e 's/DEFAULT_USER/"postgres"/' \
 		-e 's/DEFAULT_PASSWORD/"$(subst /,\/,$(DEFAULT_PASSWORD))"/' \
+		-e 's/DEFAULT_COMMENT_SRC_LOC/false/' \
 		-e 's/DEFAULT_UDSD/$(subst /,\/,$(DIR))/' > src/PGOCaml_config.ml

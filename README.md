@@ -47,6 +47,7 @@ to connect to your database both at compile-time and at runtime.
 | `PGDATABASE`  | falls back on `PGUSER` | |
 | `PGPASSWORD`  | empty string  | |
 | `PGPROFILING` | no profiling  | Indicates the file to write profiling information to. If it doesn't exist, don't profile |
+| `COMMENT_SRC_LOC` | `no`      | If set to `yes`, `1`, or `on`, PG'OCaml will append a comment to each query indicating where it appears in the OCaml source code. This can be useful for logging. |
 
 # Using the PPX
 
