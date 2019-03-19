@@ -331,6 +331,8 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 
+val comment_src_loc : unit -> bool
+
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
@@ -1700,6 +1702,16 @@ let string_of_string_array a = string_of_any_array (List.map (option_map escape_
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
 
+let comment_src_loc () =
+  match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
+  | Some x ->
+    begin match x with
+      | "yes" | "1" | "on" -> true
+      | "no" | "0" | "off" -> false
+      | _ -> failwith (Printf.sprintf "Unrecognized option for 'PGCOMMENT_SRC_LOC': %s" x)
+    end
+  | None -> PGOCaml_config.default_comment_src_loc
+
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
 
@@ -1981,4 +1993,5 @@ let bytea_of_string str =
 
 let bind = (>>=)
 let return = Thread.return
+
 end

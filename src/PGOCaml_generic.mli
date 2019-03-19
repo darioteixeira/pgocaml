@@ -332,6 +332,8 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 
+val comment_src_loc : unit -> bool
+
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
@@ -362,6 +364,7 @@ val timestamp_array_of_string : string -> timestamp_array
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
+
 end
 
 
