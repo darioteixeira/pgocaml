@@ -770,20 +770,52 @@ let parse_backend_message (typ, msg) =
 
 let verbose = ref 1
 
+type severity = ERROR | FATAL | PANIC | WARNING | NOTICE | DEBUG | INFO | LOG
+
+let get_severity fields =
+  let field =
+    try List.assoc 'V' fields (* introduced with PostgreSQL 9.6 *)
+    with Not_found -> List.assoc 'S' fields
+  in
+  match field with
+  | "ERROR" -> ERROR
+  | "FATAL" -> FATAL
+  | "PANIC" -> PANIC
+  | "WARNING" -> WARNING
+  | "NOTICE" -> NOTICE
+  | "DEBUG" -> DEBUG
+  | "INFO" -> INFO
+  | "LOG" -> LOG
+  | _ -> raise Not_found
+
+let show_severity = function
+  | ERROR -> "ERROR"
+  | FATAL -> "FATAL"
+  | PANIC -> "PANIC"
+  | WARNING -> "WARNING"
+  | NOTICE -> "NOTICE"
+  | DEBUG -> "DEBUG"
+  | INFO -> "INFO"
+  | LOG -> "LOG"
+
 (* Print an ErrorResponse on stderr. *)
 let print_ErrorResponse fields =
   if !verbose >= 1 then (
     try
-      let severity = List.assoc 'S' fields in
+      let severity = try Some (get_severity fields) with Not_found -> None in
+      let severity_string = match severity with
+        | Some s -> show_severity s
+        | None -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
       if !verbose = 1 then
 	match severity with
-	| "ERROR" | "FATAL" | "PANIC" ->
-	    eprintf "%s: %s: %s\n%!" severity code message
+	| Some ERROR | Some FATAL | Some PANIC ->
+	    eprintf "%s: %s: %s\n%!" severity_string code message
 	| _ -> ()
       else
-	eprintf "%s: %s: %s\n%!" severity code message
+	eprintf "%s: %s: %s\n%!" severity_string code message
     with
       Not_found ->
 	eprintf
@@ -797,15 +829,22 @@ let print_ErrorResponse fields =
     ) fields
   )
 
+let sync_msg conn =
+  let msg = new_message 'S' in
+  send_message conn msg
+
 (* Handle an ErrorResponse anywhere, by printing and raising an exception. *)
-let pg_error ?(sync = false) ?conn fields =
+let pg_error ?conn fields =
   print_ErrorResponse fields;
   let str =
     try
-      let severity = List.assoc 'S' fields in
+      let severity_string =
+        try show_severity @@ get_severity fields
+        with Not_found -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
-      sprintf "%s: %s: %s" severity code message
+      sprintf "%s: %s: %s" severity_string code message
     with
       Not_found ->
 	"WARNING: 'Always present' field is missing in error message" in
@@ -821,11 +860,6 @@ let pg_error ?(sync = false) ?conn fields =
 	 let msg = parse_backend_message msg in
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
-       if sync then begin
-         let msg = new_message 'S' in
-         send_message conn msg >>= fun () ->
-         loop ()
-       end else
          loop ()
   ) >>= fun () ->
 
@@ -988,7 +1022,7 @@ let connect ?host ?port ?user ?password ?database
 
   let do_connect () =
     open_connection sockaddr >>= fun (ichan, chan) ->
-
+    catch (fun () ->
     (* Create the connection structure. *)
     let conn = { ichan = ichan;
 		 chan = chan;
@@ -1050,7 +1084,8 @@ let connect ?host ?port ?user ?password ?database
     in
     loop (Some msg) >>= fun () ->
 
-    return conn
+    return conn)
+      (fun e -> close_in ichan >>= fun () -> fail e)
   in
   let detail = [
     "user"; user;
@@ -1063,12 +1098,20 @@ let connect ?host ?port ?user ?password ?database
 
 let close conn =
   let do_close () =
-    (* Be nice and send the terminate message. *)
-    let msg = new_message 'X' in
-    send_message conn msg >>= fun () ->
-    flush conn.chan >>= fun () ->
+    catch
+      (fun () ->
+         (* Be nice and send the terminate message. *)
+         let msg = new_message 'X' in
+         send_message conn msg >>= fun () ->
+         flush conn.chan >>= fun () ->
+         return None)
+      (fun e ->
+         return (Some e)) >>= fun e ->
     (* Closes the underlying socket too. *)
-    close_in conn.ichan
+    close_in conn.ichan >>= fun () ->
+    match e with
+    | None   -> return ()
+    | Some e -> fail e
   in
   profile_op conn.uuid "close" [] do_close
 
@@ -1086,8 +1129,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 let ping conn =
   let do_ping () =
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Wait for ReadyForQuery. *)
     let rec loop () =
@@ -1113,14 +1155,6 @@ type param = string option
 type result = string option
 type row = result list
 
-let flush_msg conn =
-  let msg = new_message 'H' in
-  send_message conn msg >>= fun () ->
-  (* Might as well actually flush the channel too, otherwise what is the
-   * point of executing this command?
-   *)
-  flush conn.chan
-
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
     let msg = new_message 'P' in
@@ -1129,13 +1163,14 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     add_int16 msg (List.length types);
     List.iter (add_int32 msg) types;
     send_message conn msg >>= fun () ->
-    flush_msg conn >>= fun () ->
+    sync_msg conn >>= fun () ->
     let rec loop () =
       receive_message conn >>= fun msg ->
       let msg = parse_backend_message msg in
       match msg with
-      | ErrorResponse err -> pg_error ~sync:true ~conn err
-      | ParseComplete -> return () (* Finished! *)
+      | ErrorResponse err -> pg_error ~conn err
+      | ParseComplete -> loop ()
+      | ReadyForQuery _ -> return () (* Finished! *)
       | NoticeResponse _ ->
 	  (* XXX Do or print something here? *)
 	  loop ()
@@ -1173,8 +1208,7 @@ let iter_execute conn name portal params proc () =
     send_message conn msg >>= fun () ->
 
     (* Sync *)
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Process the message(s) received from the database until we read
      * ReadyForQuery.  In the process we may get some rows back from
@@ -1309,13 +1343,14 @@ let close_statement conn ?(name = "") () =
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return () (* Finished! *)
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1330,13 +1365,14 @@ let close_portal conn ?(portal = "") () =
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return ()
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1369,16 +1405,23 @@ type param_description = {
 }
 type params_description = param_description list
 
+let expect_rfq conn ret =
+  receive_message conn >>= fun msg ->
+  match parse_backend_message msg with
+    | ReadyForQuery _ -> return ret
+    | msg -> fail @@
+      Error ("PGOCaml: unknown response from describe: " ^ string_of_msg_t msg)
+
 let describe_statement conn ?(name = "") () =
   let msg = new_message 'D' in
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
-    | ErrorResponse err -> pg_error ~sync:true ~conn err
+    | ErrorResponse err -> pg_error ~conn err
     | ParameterDescription params ->
 	let params = List.map (
 	  fun oid ->
@@ -1390,8 +1433,8 @@ let describe_statement conn ?(name = "") () =
 			string_of_msg_t msg))) >>= fun params ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  ( match msg with
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return (params, None)
   | RowDescription fields ->
       let fields = List.map (
@@ -1408,18 +1451,18 @@ let describe_statement conn ?(name = "") () =
       return (params, Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 let describe_portal conn ?(portal = "") () =
   let msg = new_message 'D' in
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  ( match msg with
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return None
   | RowDescription fields ->
       let fields = List.map (
@@ -1436,7 +1479,7 @@ let describe_portal conn ?(portal = "") () =
       return (Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 (*----- Type conversion. -----*)
 
