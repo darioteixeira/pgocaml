@@ -4,8 +4,9 @@ PKG oUnit
 PKG re
 PKG unix
 PKG compiler-libs
-PKG ppx_tools.metaquot
+PKG ppx_tools_versioned.metaquot_403
 PKG rresult
+PKG ocaml-migrate-parsetree
 
 S src
 S tests

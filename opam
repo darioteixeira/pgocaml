@@ -28,6 +28,7 @@ depends: [
   "ounit" {test}
   "ppx_tools" {build}
   "re"
+	"camlp4"
   "rresult" {build}
 ]
 depopts: [ "camlp4" ]
