@@ -7297,6 +7297,7 @@ let setup_t =
                       bs_build_depends =
                         [
                            InternalLibrary "pgocaml";
+                           FindlibPackage ("camlp4", None);
                            FindlibPackage ("camlp4.quotations", None);
                            FindlibPackage ("camlp4.extend", None)
                         ];
