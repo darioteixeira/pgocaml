@@ -24,11 +24,12 @@ depends: [
   "hex"
   "ocamlbuild" {build}
   "ocamlfind" {build}
-  "ounit" {test}
+  "ounit" {with-test}
   "ppx_tools" {build}
   "re"
   "rresult" {build}
   "ocaml-migrate-parsetree"
+  "ppx_tools_versioned"
 ]
 depopts: [ "camlp4" ]
 flags: light-uninstall
