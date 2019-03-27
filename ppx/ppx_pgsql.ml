@@ -20,11 +20,11 @@
 open PGOCaml_aux
 open Printf
 
-open Migrate_parsetree.OCaml_403.Ast.Ast_mapper
-open Migrate_parsetree.OCaml_403.Ast.Ast_helper
-open Migrate_parsetree.OCaml_403.Ast.Asttypes
-open Migrate_parsetree.OCaml_403.Ast.Parsetree
-open Migrate_parsetree.OCaml_403.Ast.Longident
+open Migrate_parsetree.OCaml_404.Ast.Ast_mapper
+open Migrate_parsetree.OCaml_404.Ast.Ast_helper
+open Migrate_parsetree.OCaml_404.Ast.Asttypes
+open Migrate_parsetree.OCaml_404.Ast.Parsetree
+open Migrate_parsetree.OCaml_404.Ast.Longident
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -532,7 +532,7 @@ let pgocaml_mapper _argv =
   }
 
 let migration =
-  Migrate_parsetree.(Versions.migrate Versions.ocaml_403 Versions.ocaml_current)
+  Migrate_parsetree.(Versions.migrate Versions.ocaml_404 Versions.ocaml_current)
 
 let _ =
   Migrate_parsetree.Compiler_libs.Ast_mapper.register
