@@ -28,7 +28,9 @@ depends: [
   "ounit" {test}
   "ppx_tools" {build}
   "re"
+	"camlp4"
   "rresult" {build}
+  "ocaml-migrate-parsetree"
 ]
 depopts: [ "camlp4" ]
 flags: light-uninstall
