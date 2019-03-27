@@ -1,9 +1,9 @@
 OASISFormat:            0.4
 Name:                   PG'OCaml
-Version:                3.0.dev
+Version:                3.1
 Synopsis:               OCaml bindings for the PostgreSQL database
 Authors:                Richard W. M. Jones et al.
-Maintainers:            Dario Teixeira
+Maintainers:            dev@ocsigen.org
 License:                LGPL-2.0 with OCaml linking exception
 LicenseFile:            LICENSE.txt
 Plugins:                META (0.4), DevFiles (0.4)
