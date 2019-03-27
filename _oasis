@@ -1,6 +1,6 @@
 OASISFormat:            0.4
 Name:                   PG'OCaml
-Version:                3.0
+Version:                3.0.dev
 Synopsis:               OCaml bindings for the PostgreSQL database
 Authors:                Richard W. M. Jones et al.
 Maintainers:            Dario Teixeira
