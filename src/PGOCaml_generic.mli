@@ -67,7 +67,26 @@ exception PostgreSQL_Error of string * (char * string) list
 
 (** {6 Connection management} *)
 
-val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> 'a t monad
+type connection_desc = {
+  user: string;
+  port: int;
+  password: string;
+  host: [ `Hostname of string | `Unix_domain_socket_dir of string];
+  database: string
+}
+
+val describe_connection : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> connection_desc
+(** Produce the actual, concrete connection parameters based on the values and
+  * availability of the various configuration variables.
+  *)
+
+val connection_desc_to_string : connection_desc -> string
+(** Produce a human-readable textual representation of a concrete connection
+  * descriptor (the password is NOT included in the output of this function)
+  * for logging and error reporting purposes.
+  *)
+
+val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> ?desc:connection_desc -> unit -> 'a t monad
 (** Connect to the database.
 
     The normal [$PGDATABASE], etc. environment variables are available. *)
@@ -313,6 +332,8 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 
+val comment_src_loc : unit -> bool
+
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
@@ -343,6 +364,7 @@ val timestamp_array_of_string : string -> timestamp_array
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
+
 end
 
 

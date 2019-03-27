@@ -66,7 +66,26 @@ exception PostgreSQL_Error of string * (char * string) list
 
 (** {6 Connection management} *)
 
-val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> 'a t monad
+type connection_desc = {
+  user: string;
+  port: int;
+  password: string;
+  host: [ `Hostname of string | `Unix_domain_socket_dir of string];
+  database: string
+}
+
+val describe_connection : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> unit -> connection_desc
+(** Produce the actual, concrete connection parameters based on the values and
+  * availability of the various configuration variables.
+  *)
+
+val connection_desc_to_string : connection_desc -> string
+(** Produce a human-readable textual representation of a concrete connection
+  * descriptor (the password is NOT included in the output of this function)
+  * for logging and error reporting purposes.
+  *)
+
+val connect : ?host:string -> ?port:int -> ?user:string -> ?password:string -> ?database:string -> ?unix_domain_socket_dir:string -> ?desc:connection_desc -> unit -> 'a t monad
 (** Connect to the database.  The normal [$PGDATABASE], etc. environment
   * variables are available.
   *)
@@ -312,6 +331,8 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 
+val comment_src_loc : unit -> bool
+
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
 val int_of_string : string -> int
@@ -348,6 +369,14 @@ end
 module Make (Thread : THREAD) = struct
 
 open Thread
+
+type connection_desc = {
+  user: string;
+  port: int;
+  password: string;
+  host: [ `Hostname of string | `Unix_domain_socket_dir of string];
+  database: string
+}
 
 type 'a t = {
   ichan : in_channel;			(* In_channel wrapping socket. *)
@@ -770,20 +799,52 @@ let parse_backend_message (typ, msg) =
 
 let verbose = ref 1
 
+type severity = ERROR | FATAL | PANIC | WARNING | NOTICE | DEBUG | INFO | LOG
+
+let get_severity fields =
+  let field =
+    try List.assoc 'V' fields (* introduced with PostgreSQL 9.6 *)
+    with Not_found -> List.assoc 'S' fields
+  in
+  match field with
+  | "ERROR" -> ERROR
+  | "FATAL" -> FATAL
+  | "PANIC" -> PANIC
+  | "WARNING" -> WARNING
+  | "NOTICE" -> NOTICE
+  | "DEBUG" -> DEBUG
+  | "INFO" -> INFO
+  | "LOG" -> LOG
+  | _ -> raise Not_found
+
+let show_severity = function
+  | ERROR -> "ERROR"
+  | FATAL -> "FATAL"
+  | PANIC -> "PANIC"
+  | WARNING -> "WARNING"
+  | NOTICE -> "NOTICE"
+  | DEBUG -> "DEBUG"
+  | INFO -> "INFO"
+  | LOG -> "LOG"
+
 (* Print an ErrorResponse on stderr. *)
 let print_ErrorResponse fields =
   if !verbose >= 1 then (
     try
-      let severity = List.assoc 'S' fields in
+      let severity = try Some (get_severity fields) with Not_found -> None in
+      let severity_string = match severity with
+        | Some s -> show_severity s
+        | None -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
       if !verbose = 1 then
 	match severity with
-	| "ERROR" | "FATAL" | "PANIC" ->
-	    eprintf "%s: %s: %s\n%!" severity code message
+	| Some ERROR | Some FATAL | Some PANIC ->
+	    eprintf "%s: %s: %s\n%!" severity_string code message
 	| _ -> ()
       else
-	eprintf "%s: %s: %s\n%!" severity code message
+	eprintf "%s: %s: %s\n%!" severity_string code message
     with
       Not_found ->
 	eprintf
@@ -797,15 +858,22 @@ let print_ErrorResponse fields =
     ) fields
   )
 
+let sync_msg conn =
+  let msg = new_message 'S' in
+  send_message conn msg
+
 (* Handle an ErrorResponse anywhere, by printing and raising an exception. *)
-let pg_error ?(sync = false) ?conn fields =
+let pg_error ?conn fields =
   print_ErrorResponse fields;
   let str =
     try
-      let severity = List.assoc 'S' fields in
+      let severity_string =
+        try show_severity @@ get_severity fields
+        with Not_found -> "UNKNOWN"
+      in
       let code = List.assoc 'C' fields in
       let message = List.assoc 'M' fields in
-      sprintf "%s: %s: %s" severity code message
+      sprintf "%s: %s: %s" severity_string code message
     with
       Not_found ->
 	"WARNING: 'Always present' field is missing in error message" in
@@ -821,11 +889,6 @@ let pg_error ?(sync = false) ?conn fields =
 	 let msg = parse_backend_message msg in
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
-       if sync then begin
-         let msg = new_message 'S' in
-         send_message conn msg >>= fun () ->
-         loop ()
-       end else
          loop ()
   ) >>= fun () ->
 
@@ -887,82 +950,112 @@ let pgsql_socket dir port =
   let sockaddr = sprintf "%s/.s.PGSQL.%d" dir port in
   Unix.ADDR_UNIX sockaddr
 
-let connect ?host ?port ?user ?password ?database
-    ?(unix_domain_socket_dir = PGOCaml_config.default_unix_domain_socket_dir)
+let describe_connection ?host ?port ?user ?password ?database
+    ?(unix_domain_socket_dir)
     () =
   (* Get the username. *)
   let user =
     match user with
     | Some user -> user
     | None ->
-	try Sys.getenv "PGUSER"
-	with Not_found ->
-	  try
-	    let pw = Unix.getpwuid (Unix.geteuid ()) in
-	    pw.Unix.pw_name
-	  with
-	    Not_found -> "postgres" in
+      try Sys.getenv "PGUSER"
+      with Not_found ->
+        try
+          let pw = Unix.getpwuid (Unix.geteuid ()) in
+          pw.Unix.pw_name
+        with
+          Not_found -> PGOCaml_config.default_user
+  in
 
   (* Get the password. *)
   let password =
     match password with
     | Some password -> password
     | None ->
-       try Sys.getenv "PGPASSWORD"
-       with Not_found -> "" in
+      try Sys.getenv "PGPASSWORD"
+      with Not_found -> PGOCaml_config.default_password in
 
   (* Get the database name. *)
   let database =
     match database with
     | Some database -> database
     | None ->
-	try Sys.getenv "PGDATABASE"
-	with Not_found -> user in
+      try Sys.getenv "PGDATABASE"
+      with Not_found -> user in
 
   (* Hostname and port number. *)
   let host =
-    match host with
-    | Some _ -> host
-    | None ->
-	try Some (Sys.getenv "PGHOST")
-	with Not_found -> None in (* use Unix domain socket. *)
+    match (host, unix_domain_socket_dir) with
+    | (Some _), (Some _) ->
+      raise (Failure "describe_connection: it's invalid to specify both a HOST and a unix domain socket directory")
+    | (Some s), None when String.length s > 0 && String.get s 0 = '/' ->
+      `Unix_domain_socket_dir s
+    | (Some s), None ->
+      `Hostname s
+    | None, (Some s) ->
+      `Unix_domain_socket_dir s
+    | None, None ->
+      try
+        `Hostname (Sys.getenv "PGHOST")
+      with
+        Not_found -> (* fall back on Unix domain socket. *)
+          `Unix_domain_socket_dir PGOCaml_config.default_unix_domain_socket_dir
+  in
 
   let port =
     match port with
     | Some port -> port
     | None ->
-	try int_of_string (Sys.getenv "PGPORT")
-	with Not_found | Failure _ -> 5432 in
+	    try int_of_string (Sys.getenv "PGPORT")
+	    with Not_found | Failure _ -> PGOCaml_config.default_port
+  in
+  { user; host; port; database; password }
 
+(** We need to convert keys to a human-readable format for error reporting.
+  *)
+let connection_desc_to_string key =
+  Printf.sprintf
+    "host=%s, port=%s, user=%s, password=%s, database=%s"
+    (match key.host with `Unix_domain_socket_dir _ -> "unix" | `Hostname s -> s)
+    (string_of_int key.port)
+    key.user
+    "*****" (** we don't want to be dumping passwords into error logs *)
+    key.database
+
+let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
+    () =
+  let { user; host; port; database; password } =
+    match desc with
+    | None -> describe_connection ?host ?port ?user ?password ?database ?unix_domain_socket_dir ()
+    | Some desc -> desc
+  in
   (* Make the socket address. *)
   let sockaddr =
     match host with
-    | Some h when
-        String.length h > 0 && String.get h 0 = '/' ->
-      pgsql_socket h port
-    | Some hostname ->
-	(try
-	   let hostent = Unix.gethostbyname hostname in
-	   let domain = hostent.Unix.h_addrtype in
-	   match domain with
-	   | Unix.PF_INET | Unix.PF_INET6 ->
-	       (* Choose a random address from the list. *)
-	       let addrs = hostent.Unix.h_addr_list in
-	       let len = Array.length addrs in
-	       if len <= 0 then
-		 raise (Error ("PGOCaml: unknown host: " ^ hostname));
-	       let i = Random.int len in
-	       let addr = addrs.(i) in
-	       Unix.ADDR_INET (addr, port)
-	   | Unix.PF_UNIX ->
-	       (* Would we trust a pathname returned through DNS? *)
-	       raise (Error "PGOCaml: DNS returned PF_UNIX record")
-	 with
-	   Not_found ->
-	     raise (Error ("PGOCaml: unknown host: " ^ hostname))
-	);
-    | None -> (* Unix domain socket. *)
-      pgsql_socket unix_domain_socket_dir port in
+    | `Hostname hostname ->
+        (try
+            let hostent = Unix.gethostbyname hostname in
+            let domain = hostent.Unix.h_addrtype in
+            match domain with
+            | Unix.PF_INET | Unix.PF_INET6 ->
+                (* Choose a random address from the list. *)
+                let addrs = hostent.Unix.h_addr_list in
+                let len = Array.length addrs in
+                if len <= 0 then
+            raise (Error ("PGOCaml: unknown host: " ^ hostname));
+                let i = Random.int len in
+                let addr = addrs.(i) in
+                Unix.ADDR_INET (addr, port)
+            | Unix.PF_UNIX ->
+                (* Would we trust a pathname returned through DNS? *)
+                raise (Error "PGOCaml: DNS returned PF_UNIX record")
+          with
+            Not_found ->
+              raise (Error ("PGOCaml: unknown host: " ^ hostname))
+        );
+    | `Unix_domain_socket_dir udsd -> (* Unix domain socket. *)
+      pgsql_socket udsd port
+  in
 
   (* Create a universally unique identifier for this connection.  This
    * is mainly for debugging and profiling.
@@ -988,7 +1081,7 @@ let connect ?host ?port ?user ?password ?database
 
   let do_connect () =
     open_connection sockaddr >>= fun (ichan, chan) ->
-
+    catch (fun () ->
     (* Create the connection structure. *)
     let conn = { ichan = ichan;
 		 chan = chan;
@@ -1050,12 +1143,13 @@ let connect ?host ?port ?user ?password ?database
     in
     loop (Some msg) >>= fun () ->
 
-    return conn
+    return conn)
+      (fun e -> close_in ichan >>= fun () -> fail e)
   in
   let detail = [
     "user"; user;
     "database"; database;
-    "host"; Option.default "unix" host;
+    "host"; begin match host with `Unix_domain_socket_dir _ -> "unix" | `Hostname s -> s end;
     "port"; string_of_int port;
     "prog"; Sys.executable_name
   ] in
@@ -1063,12 +1157,20 @@ let connect ?host ?port ?user ?password ?database
 
 let close conn =
   let do_close () =
-    (* Be nice and send the terminate message. *)
-    let msg = new_message 'X' in
-    send_message conn msg >>= fun () ->
-    flush conn.chan >>= fun () ->
+    catch
+      (fun () ->
+         (* Be nice and send the terminate message. *)
+         let msg = new_message 'X' in
+         send_message conn msg >>= fun () ->
+         flush conn.chan >>= fun () ->
+         return None)
+      (fun e ->
+         return (Some e)) >>= fun e ->
     (* Closes the underlying socket too. *)
-    close_in conn.ichan
+    close_in conn.ichan >>= fun () ->
+    match e with
+    | None   -> return ()
+    | Some e -> fail e
   in
   profile_op conn.uuid "close" [] do_close
 
@@ -1086,8 +1188,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 let ping conn =
   let do_ping () =
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Wait for ReadyForQuery. *)
     let rec loop () =
@@ -1113,14 +1214,6 @@ type param = string option
 type result = string option
 type row = result list
 
-let flush_msg conn =
-  let msg = new_message 'H' in
-  send_message conn msg >>= fun () ->
-  (* Might as well actually flush the channel too, otherwise what is the
-   * point of executing this command?
-   *)
-  flush conn.chan
-
 let prepare conn ~query ?(name = "") ?(types = []) () =
   let do_prepare () =
     let msg = new_message 'P' in
@@ -1129,13 +1222,14 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     add_int16 msg (List.length types);
     List.iter (add_int32 msg) types;
     send_message conn msg >>= fun () ->
-    flush_msg conn >>= fun () ->
+    sync_msg conn >>= fun () ->
     let rec loop () =
       receive_message conn >>= fun msg ->
       let msg = parse_backend_message msg in
       match msg with
-      | ErrorResponse err -> pg_error ~sync:true ~conn err
-      | ParseComplete -> return () (* Finished! *)
+      | ErrorResponse err -> pg_error ~conn err
+      | ParseComplete -> loop ()
+      | ReadyForQuery _ -> return () (* Finished! *)
       | NoticeResponse _ ->
 	  (* XXX Do or print something here? *)
 	  loop ()
@@ -1173,8 +1267,7 @@ let iter_execute conn name portal params proc () =
     send_message conn msg >>= fun () ->
 
     (* Sync *)
-    let msg = new_message 'S' in
-    send_message conn msg >>= fun () ->
+    sync_msg conn >>= fun () ->
 
     (* Process the message(s) received from the database until we read
      * ReadyForQuery.  In the process we may get some rows back from
@@ -1309,13 +1402,14 @@ let close_statement conn ?(name = "") () =
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return () (* Finished! *)
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1330,13 +1424,14 @@ let close_portal conn ?(portal = "") () =
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
     let msg = parse_backend_message msg in
     match msg with
-    | ErrorResponse err -> pg_error err
-    | CloseComplete -> return ()
+    | ErrorResponse err -> pg_error ~conn err
+    | CloseComplete -> loop ()
+    | ReadyForQuery _ -> return () (* Finished! *)
     | NoticeResponse _ ->
 	(* XXX Do or print something here? *)
 	loop ()
@@ -1369,16 +1464,23 @@ type param_description = {
 }
 type params_description = param_description list
 
+let expect_rfq conn ret =
+  receive_message conn >>= fun msg ->
+  match parse_backend_message msg with
+    | ReadyForQuery _ -> return ret
+    | msg -> fail @@
+      Error ("PGOCaml: unknown response from describe: " ^ string_of_msg_t msg)
+
 let describe_statement conn ?(name = "") () =
   let msg = new_message 'D' in
   add_char msg 'S';
   add_string msg name;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
   ( match msg with
-    | ErrorResponse err -> pg_error ~sync:true ~conn err
+    | ErrorResponse err -> pg_error ~conn err
     | ParameterDescription params ->
 	let params = List.map (
 	  fun oid ->
@@ -1390,8 +1492,8 @@ let describe_statement conn ?(name = "") () =
 			string_of_msg_t msg))) >>= fun params ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  ( match msg with
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return (params, None)
   | RowDescription fields ->
       let fields = List.map (
@@ -1408,18 +1510,18 @@ let describe_statement conn ?(name = "") () =
       return (params, Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 let describe_portal conn ?(portal = "") () =
   let msg = new_message 'D' in
   add_char msg 'P';
   add_string msg portal;
   send_message conn msg >>= fun () ->
-  flush_msg conn >>= fun () ->
+  sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
   let msg = parse_backend_message msg in
-  match msg with
-  | ErrorResponse err -> pg_error ~sync:true ~conn err
+  ( match msg with
+  | ErrorResponse err -> pg_error ~conn err
   | NoData -> return None
   | RowDescription fields ->
       let fields = List.map (
@@ -1436,7 +1538,7 @@ let describe_portal conn ?(portal = "") () =
       return (Some fields)
   | _ ->
       fail (Error ("PGOCaml: unknown response from describe: " ^
-		      string_of_msg_t msg))
+		      string_of_msg_t msg))) >>= expect_rfq conn
 
 (*----- Type conversion. -----*)
 
@@ -1599,6 +1701,16 @@ let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to
 let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
+
+let comment_src_loc () =
+  match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
+  | Some x ->
+    begin match x with
+      | "yes" | "1" | "on" -> true
+      | "no" | "0" | "off" -> false
+      | _ -> failwith (Printf.sprintf "Unrecognized option for 'PGCOMMENT_SRC_LOC': %s" x)
+    end
+  | None -> PGOCaml_config.default_comment_src_loc
 
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
@@ -1881,4 +1993,5 @@ let bytea_of_string str =
 
 let bind = (>>=)
 let return = Thread.return
+
 end

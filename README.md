@@ -33,6 +33,115 @@ interface that implements the `PGOCaml_generic.THREAD` signature.
 * It doesn't work with other databases, nor will it ever work with other
 databases.
 
+# Usage
+
+PG'OCaml uses environment variables (or in-code parameters, which are [ill advised]
+(https://hackernoon.com/how-to-use-environment-variables-keep-your-secret-keys-safe-secure-8b1a7877d69c))
+to connect to your database both at compile-time and at runtime.
+
+| Variable      | Default       | Additional information |
+| ------------- | ------------- | ---------------------- |
+| `PGHOST`      | | If this starts with a `/` or is unspecified, PG'OCaml assumes you're specifying a Unix domain socket. |
+| `PGPORT`      | `5432`        | This is also the default PostgreSQL port. |
+| `PGUSER`      | The username of the current user, or `postgres` if that can't be found. | |
+| `PGDATABASE`  | falls back on `PGUSER` | |
+| `PGPASSWORD`  | empty string  | |
+| `PGPROFILING` | no profiling  | Indicates the file to write profiling information to. If it doesn't exist, don't profile |
+| `COMMENT_SRC_LOC` | `no`      | If set to `yes`, `1`, or `on`, PG'OCaml will append a comment to each query indicating where it appears in the OCaml source code. This can be useful for logging. |
+
+# Using the PPX
+
+In addition to the camlp4 syntax extension, there is also a PPX
+available for more recent versions of OCaml. The PPX aims to be more or less a
+carbon copy of the camlp4 extension.
+
+```ocaml
+let () =
+  let dbh = PGOCaml.connect () in
+  let insert name salary =
+    [%pgsql dbh "insert into employees (name, salary) VALUES ($name, $salary)"]
+  in
+  ignore(insert "Chris" 1_000.0);
+  let get name =
+    [%pgsql dbh "select salary from employees where name = $name"]
+  in
+  let () = [%pgsql dbh
+      "execute"
+      "CREATE TEMP TABLE IF NOT EXISTS employees (
+        name TEXT PRIMARY KEY,
+        salary FLOAT)"]
+  in
+  let name = "Chris" in
+  let salary = get name
+    |> List.hd
+    |> function
+        | Some(x) -> x
+        | None -> raise(Failure "The database is probably broken.")
+  in
+  Printf.printf "%s's salary is %.02f\n" name salary;
+  PGOCaml.close(dbh)
+```
+
+Prepared statements are checked in reverse order, so this will compile:
+
+```ocaml
+let () =
+  let dbh = PGOCaml.connect () in
+  let insert name salary =
+    [%pgsql dbh "insert into employees (name, salary) VALUES ($name, $salary)"]
+  in
+  ignore(insert "Chris" 1_000.0);
+  let get name =
+    [%pgsql dbh "select salary from employees where name = $name"]
+  in
+  let () =
+    [%pgsql dbh "execute" "
+      CREATE TEMP TABLE IF NOT EXISTS employees (
+        name TEXT PRIMARY KEY,
+        salary FLOAT
+      )"]
+  in
+  let name = "Chris" in
+  let salary = get name
+    |> List.hd
+    |> function
+        | Some(x) -> x
+        | None -> raise(Failure "The database is probably broken.")
+  in
+  Printf.printf "%s's salary is %.02f\n" name salary;
+  PGOCaml.close(dbh)
+```
+
+but the following will NOT:
+
+```ocaml
+let () =
+  let dbh = PGOCaml.connect () in
+  let () =
+    [%pgsql dbh "execute" "
+      CREATE TEMP TABLE IF NOT EXISTS employees (
+        name TEXT PRIMARY KEY,
+        salary FLOAT
+      )"]
+  in
+  let insert name salary =
+    [%pgsql dbh "insert into employees (name, salary) VALUES ($name, $salary)"]
+  in
+  ignore(insert "Chris" 1_000.0);
+  let get name =
+    [%pgsql dbh "select salary from employees where name = $name"]
+  in
+  let name = "Chris" in
+  let salary = get name
+    |> List.hd
+    |> function
+        | Some(x) -> x
+        | None -> raise(Failure "The database is probably broken.")
+  in
+  Printf.printf "%s's salary is %.02f\n" name salary;
+  PGOCaml.close(dbh)
+```
+
 ----------------------------------------------------------------------
 
 PG'OCaml (C) Copyright 2005-2009 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)
