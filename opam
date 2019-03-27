@@ -30,6 +30,7 @@ depends: [
   "re"
 	"camlp4"
   "rresult" {build}
+  "ocaml-migrate-parsetree"
 ]
 depopts: [ "camlp4" ]
 flags: light-uninstall
