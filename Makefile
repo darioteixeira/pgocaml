@@ -45,9 +45,10 @@ DEFAULT_PASSWORD=
 
 config:
 	# Generate the PGOCaml_config module by replacing some values in PGOCaml_config.ml.in
-	sed src/PGOCaml_config.ml.in \
+	sed \
 		-e 's/DEFAULT_PORT/5432/' \
 		-e 's/DEFAULT_USER/"postgres"/' \
 		-e 's/DEFAULT_PASSWORD/"$(subst /,\/,$(DEFAULT_PASSWORD))"/' \
 		-e 's/DEFAULT_COMMENT_SRC_LOC/false/' \
-		-e 's/DEFAULT_UDSD/$(subst /,\/,$(DIR))/' > src/PGOCaml_config.ml
+		-e 's/DEFAULT_UDSD/$(subst /,\/,$(DIR))/' > src/PGOCaml_config.ml \
+		src/PGOCaml_config.ml.in
