@@ -10,12 +10,13 @@ bug-reports: "https://github.com/darioteixeira/pgocaml/issues"
 dev-repo: "git+https://github.com/darioteixeira/pgocaml.git"
 license: "LGPL-2.0 with OCaml linking exception"
 build: [
-  ["./configure" "--%{camlp4:enable}%-p4" "--enable-ppx" "--enable-debug" "--prefix" prefix "--docdir" "%{doc}%/pgocaml"]
-  [make]
-  [make "doc"]
+  ["dune" "build"]
+  ["dune" "build" "@doc"]
 ]
-install: [[make "install"]]
-remove: [["ocamlfind" "remove" "pgocaml"]]
+install: [["dune" "install"]]
+remove: [
+  ["dune" "uninstall"]
+]
 depends: [
   "ocaml" {>= "4.05"}
   "base-bytes"
@@ -30,6 +31,6 @@ depends: [
   "rresult" {build}
   "ocaml-migrate-parsetree"
   "ppx_tools_versioned"
+  "odoc"
 ]
-depopts: [ "camlp4" ]
 flags: light-uninstall

@@ -14,10 +14,6 @@ Flag "pgprof"
   Description:          Build PG'OCaml profiling utility
   Default:              true
 
-Flag "p4"
-  Description:          PG'OCaml syntax extension
-  Default:              false
-
 Flag "ppx"
   Description:          PG'OCaml syntax extension (PPX version)
   Default:              false
@@ -28,18 +24,6 @@ Library "pgocaml"
   BuildDepends:         unix, calendar, csv, re, bytes, hex, rresult
   FindlibName:          pgocaml
   XMETARequires:        unix, calendar, csv, re, bytes, hex
-
-Library "pa_pgsql"
-  Path:                 syntax
-  Build$:               flag(p4)
-  Modules:              Pa_pgsql
-  CompiledObject:       byte
-  BuildDepends:         pgocaml, camlp4, camlp4.quotations, camlp4.extend
-  FindlibParent:        pgocaml
-  FindlibName:          syntax
-  XMETAType:            syntax
-  XMETADescription:     Syntax extension for PG'OCaml
-  XMETARequires:        pgocaml, camlp4
 
 Library "ppx_pgsql"
   Path:                 ppx
@@ -80,13 +64,6 @@ Executable "test_pgocaml_lowlevel"
   MainIs:               test_pgocaml_lowlevel.ml
   BuildDepends:         pgocaml
 
-Executable "test_pgocaml_highlevel"
-  Build$:               flag(tests) && flag(p4)
-  Install:              false
-  Path:                 tests
-  MainIs:               test_pgocaml_highlevel.ml
-  BuildDepends:         pgocaml, pgocaml.syntax
-
 Executable "test_re"
   Build$:               flag(tests)
   Install:              false
@@ -104,10 +81,6 @@ Executable "test_ppx"
 
 Test "pgocaml_lowlevel"
   Command:              $test_pgocaml_lowlevel
-  WorkingDirectory:     tests
-
-Test "pgocaml_highlevel"
-  Command:              $test_pgocaml_highlevel
   WorkingDirectory:     tests
 
 Test "test_re"

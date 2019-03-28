@@ -196,7 +196,9 @@ type pa_pg_data = (string, bool) Hashtbl.t
 type oid = int32
 
 type param = string option (** None is NULL. *)
+
 type result = string option (** None is NULL. *)
+
 type row = result list (** One row is a list of fields. *)
 
 val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit -> unit monad
@@ -273,7 +275,7 @@ val describe_portal : 'a t -> ?portal:string -> unit -> row_description option m
 
 (** {6 Low level type conversion functions - DO NOT USE DIRECTLY} *)
 
-val name_of_type : ?modifier:int32 -> oid -> string
+val name_of_type : oid -> string
 (** Returns the OCaml equivalent type name to the PostgreSQL type [oid].
   * For instance, [name_of_type (Int32.of_int 23)] returns ["int32"] because
   * the OID for PostgreSQL's internal [int4] type is [23].  As another
@@ -432,10 +434,6 @@ let add_int32 (buf, _) i =
   Buffer.add_char buf (Char.unsafe_chr ((base lsr 8) land 0xff));
   Buffer.add_char buf (Char.unsafe_chr (base land 0xff))
 
-let add_int64 msg i =
-  add_int32 msg (Int64.to_int32 (Int64.shift_right_logical i 32));
-  add_int32 msg (Int64.to_int32 i)
-
 let add_string_no_trailing_nil (buf, _) str =
   (* Check the string doesn't contain '\0' characters. *)
   if String.contains str '\000' then
@@ -448,7 +446,7 @@ let add_string msg str =
   add_string_no_trailing_nil msg str;
   add_byte msg 0
 
-let send_message { chan = chan } (buf, typ) =
+let send_message { chan = chan; _ } (buf, typ) =
   (* Get the length in bytes. *)
   let len = 4 + Buffer.length buf in
 
@@ -484,7 +482,7 @@ let max_message_length = ref Sys.max_string_length
 (* Receive a single result message.  Parse out the message type,
  * message length, and binary message content.
  *)
-let receive_message { ichan = ichan; chan = chan } =
+let receive_message { ichan = ichan; chan = chan; _ } =
   (* Flush output buffer. *)
   flush chan >>= fun () ->
 
@@ -745,7 +743,7 @@ let parse_backend_message (typ, msg) =
     | 'D' ->
 	let nr_fields = get_int16 () in
 	let fields = ref [] in
-	for i = 0 to nr_fields-1 do
+	for _i = 0 to nr_fields-1 do
 	  let len = get_int32 () in
 	  let field =
 	    if len < 0l then (-1, "")
@@ -769,7 +767,7 @@ let parse_backend_message (typ, msg) =
     | 'T' ->
 	let nr_fields = get_int16 () in
 	let fields = ref [] in
-	for i = 0 to nr_fields-1 do
+	for _i = 0 to nr_fields-1 do
 	  let name = get_string () in
 	  let table = get_int32 () in
 	  let column = get_int16 () in
@@ -785,7 +783,7 @@ let parse_backend_message (typ, msg) =
     | 't' ->
 	let nr_fields = get_int16 () in
 	let fields = ref [] in
-	for i = 0 to nr_fields - 1 do
+	for _i = 0 to nr_fields - 1 do
 	  let oid = get_int32 () in
 	  fields := oid :: !fields
 	done;
@@ -1019,7 +1017,7 @@ let connection_desc_to_string key =
     (match key.host with `Unix_domain_socket_dir _ -> "unix" | `Hostname s -> s)
     (string_of_int key.port)
     key.user
-    "*****" (** we don't want to be dumping passwords into error logs *)
+    "*****" (* we don't want to be dumping passwords into error logs *)
     key.database
 
 let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
@@ -1117,7 +1115,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	  let msg = new_message 'p' in (* PasswordMessage *)
 	  add_string msg password;
 	  loop (Some msg)
-      | AuthenticationCryptPassword salt ->
+      | AuthenticationCryptPassword _salt ->
 	  (* Crypt password not supported because there is no crypt(3) function
 	   * in OCaml.
 	   *)
@@ -1134,7 +1132,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	  fail (Error "PGOCaml: SCM Credential authentication not supported")
       | ErrorResponse err ->
 	  pg_error err
-      | NoticeResponse err ->
+      | NoticeResponse _err ->
 	  (* XXX Do or print something here? *)
 	  loop None
       | _ ->
@@ -1177,7 +1175,7 @@ let close conn =
 let set_private_data conn data =
   conn.private_data <- Some data
 
-let private_data { private_data } =
+let private_data { private_data; _ } =
   match private_data with
   | None -> raise Not_found
   | Some private_data -> private_data
@@ -1280,7 +1278,7 @@ let iter_execute conn name portal params proc () =
       match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
-      | NoticeResponse err ->
+      | NoticeResponse _err ->
 	  (* XXX Do or print something here? *)
 	  loop ()
       | BindComplete -> loop ()
@@ -1291,7 +1289,7 @@ let iter_execute conn name portal params proc () =
 	    function
 	    | (i, _) when i < 0 -> None (* NULL *)
 	    | (0, _) -> Some ""
-	    | (i, bytes) -> Some bytes
+	    | (_i, bytes) -> Some bytes
 	  ) fields in
 	  proc fields >>= loop
       | NoData -> loop ()
@@ -1548,7 +1546,7 @@ let describe_portal conn ?(portal = "") () =
  * However we don't always have the modifier field available -
  * in particular for parameters.
  *)
-let name_of_type ?modifier = function
+let name_of_type = function
   | 16_l -> "bool"           (* BOOLEAN *)
   | 17_l -> "bytea"          (* BYTEA *)
   | 20_l -> "int64"          (* INT8 *)

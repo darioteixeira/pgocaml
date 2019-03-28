@@ -1,0 +1,15 @@
+(library
+  (name pgocaml_ppx)
+  (public_name pgocaml.ppx)
+  (kind ppx_rewriter)
+  (preprocess
+    (pps ppx_tools_versioned.metaquot_404))
+  (libraries
+    base
+    ppx_tools
+    rresult
+    ppx_tools_versioned.metaquot_404
+    batteries
+    ocaml-migrate-parsetree
+    pgocaml)
+  (modules Ppx_pgsql))
