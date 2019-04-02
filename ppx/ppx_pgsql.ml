@@ -130,12 +130,6 @@ let const_string ~loc str =
     pexp_loc = loc;
     pexp_attributes = []; }
 
-let expr_of_exprs exprs =
-  List.fold_right
-    (fun expr tail -> [%expr [%e expr]::[%e tail]])
-    exprs
-    [%expr []]
-
 let parse_flags flags loc =
   (* Parse the flags. *)
   let f_execute = ref false in
@@ -280,20 +274,20 @@ let pgsql_expand ?(flags = []) loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
          let varname, list, option = List.assoc i varmap in
-         let varname = Exp.ident { txt = Lident varname; loc } in
+         let varname = Exp.ident ~loc { txt = Lident varname; loc } in
          let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
-         let fn = Exp.ident { txt = Lident fn; loc } in
+         let fn = Exp.ident ~loc { txt = Lident fn; loc } in
          let head =
            match list, option with
-           | false, false -> [%expr [Some (PGOCaml.([%e fn]) [%e varname])]]
-           | false, true -> [%expr [PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e varname]]]
-           | true, false -> [%expr List.map (fun x -> Some (PGOCaml.([%e fn]) x)) [%e varname]]
-           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map PGOCaml.([%e fn])) [%e varname]]
+           | false, false -> [%expr [Some (PGOCaml.([%e fn]) [%e varname])]][@metaloc loc]
+           | false, true -> [%expr [PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e varname]]][@metaloc loc]
+           | true, false -> [%expr List.map (fun x -> Some (PGOCaml.([%e fn]) x)) [%e varname]][@metaloc loc]
+           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map PGOCaml.([%e fn])) [%e varname]][@metaloc loc]
          in
-         [%expr [%e head]::[%e tail]]
+         ([%expr [%e head]::[%e tail]][@metaloc loc])
       )
       (List.combine (range 1 (1 + List.length varmap)) params)
-      [%expr []]
+      ([%expr []][@metaloc loc])
   in
 
   (* Substitute expression. *)
@@ -301,17 +295,17 @@ let pgsql_expand ?(flags = []) loc dbh query =
     let split = List.fold_right (
         fun s tail ->
           let head = match s with
-            | `Text text -> [%expr `Text [%e const_string ~loc text]]
+            | `Text text -> ([%expr `Text [%e const_string ~loc text]][@metaloc loc])
             | `Var (varname, list, option) ->
               let list =
-                if list then [%expr true] else [%expr false] in
+                if list then ([%expr true][@metaloc loc]) else ([%expr false][@metaloc loc]) in
               let option =
-                if option then [%expr true] else [%expr false] in
-              [%expr `Var ([%e const_string ~loc varname],
+                if option then ([%expr true][@metaloc loc]) else ([%expr false][@metaloc loc]) in
+              ([%expr `Var ([%e const_string ~loc varname],
                            [%e list],
-                           [%e option])] in
-          [%expr [%e head] :: [%e tail]]
-      ) split [%expr []] in
+                           [%e option])][@metaloc loc]) in
+          ([%expr [%e head] :: [%e tail]][@metaloc loc])
+      ) split ([%expr []][@metaloc loc]) in
     [%expr
        (* let original_query = $str:query$ in * original query string *)
       let dbh = [%e dbh] in
@@ -327,11 +321,11 @@ let pgsql_expand ?(flags = []) loc dbh query =
           List.map (
             function
             | `Text text -> text
-            | `Var (varname, false, _) ->    (* non-list item *)
+            | `Var (_varname, false, _) ->    (* non-list item *)
               let () = incr i in        (* next parameter *)
               let () = incr j in        (* next placeholder number *)
               "$" ^ string_of_int j.contents
-            | `Var (varname, true, _) -> (* list item *)
+            | `Var (_varname, true, _) -> (* list item *)
               let param = List.nth params i.contents in
               let () = incr i in        (* next parameter *)
               "(" ^
@@ -372,7 +366,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
            PGOCaml.return ()) (fun () ->
             (* Execute the statement, returning the rows. *)
             PGOCaml.execute_rev dbh ~name ~params ())
-    ] in
+    ][@metaloc loc] in
 
   (* If we're expecting any result rows, then generate a function to
    * convert them.  Otherwise return unit.  Note that we can only
@@ -384,10 +378,10 @@ let pgsql_expand ?(flags = []) loc dbh query =
     let list = List.fold_right
         (fun i tail ->
            let var = Pat.var @@ { txt = "c"^string_of_int i; loc } in
-           [%pat? [%p var]::[%p tail]]
+           [%pat? [%p var]::[%p tail]][@metaloc loc]
         )
         (range 0 (List.length results))
-        [%pat? []] in
+        ([%pat? []][@metaloc loc]) in
     let conversions =
       List.mapi (
         fun i result ->
@@ -395,6 +389,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
           let modifier = result.PGOCaml.modifier in
           let fn = name_of_type_wrapper ~modifier my_dbh field_type in
           let fn = fn ^ "_of_string" in
+          let fn = Exp.ident ~loc { txt = Lident fn; loc } in
           let nullable =
             f_nullable_results ||
             match (result.PGOCaml.table, result.PGOCaml.column) with
@@ -413,22 +408,26 @@ let pgsql_expand ?(flags = []) loc dbh query =
                 | _ -> false in
               not not_nullable
             | _ -> true (* Assume it could be nullable. *) in
-          let col = Exp.ident { txt = Lident ("c" ^ string_of_int i); loc } in
+          let col = Exp.ident ~loc { txt = Lident ("c" ^ string_of_int i); loc } in
           if nullable then
-            [%expr PGOCaml_aux.Option.map PGOCaml.([%e Exp.ident { txt = Lident fn; loc }]) [%e col]]
+            ([%expr PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e col]][@metaloc loc])
           else
-            [%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
-                (try PGOCaml_aux.Option.get [%e col] with
-                 | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\"")]
+            ( [%expr PGOCaml.([%e fn])
+                ( try PGOCaml_aux.Option.get [%e col] with
+                  | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
+                )
+              ]
+              [@metaloc loc]
+            )
       ) results in
     let convert =
       (* Avoid generating a single-element tuple. *)
       match conversions with
-      | [] -> [%expr ()]
+      | [] -> [%expr ()][@metaloc loc]
       | [a] -> a
       | conversions -> Exp.tuple conversions
     in
-    Ok [%expr
+    let expr = [%expr
       PGOCaml.bind [%e expr] (fun _rows ->
           PGOCaml.return
             (let original_query = [%e const_string ~loc query] in
@@ -453,9 +452,11 @@ let pgsql_expand ?(flags = []) loc dbh query =
                              ) in
                    raise (PGOCaml.Error msg)
              ) _rows))
-    ]
+    ][@metaloc loc]
+    in
+    Ok expr
   | None ->
-    Ok [%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())]
+    Ok([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
 
 let expand_sql loc dbh extras =
      let query, flags =
@@ -476,11 +477,11 @@ let list_of_string_args mapper args =
   let maybe_strs =
     List.map
       (function
-        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None))})
+        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None)); _})
           -> Some str
         | (_, other) ->
           match mapper other with
-          | {pexp_desc = Pexp_constant (Pconst_string (str, None))}
+          | {pexp_desc = Pexp_constant (Pconst_string (str, None)); _}
             -> Some str
           | _ -> None
       )
@@ -506,8 +507,10 @@ let pgocaml_mapper _argv =
       | { pexp_desc =
             Pexp_extension (
               { txt = "pgsql"; loc },
-              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc}, _)}]
-            )} ->
+              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _}, _); _}]
+            )
+        ; _
+        } ->
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
@@ -518,14 +521,26 @@ let pgocaml_mapper _argv =
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
+                    Location.error ~loc ("PG'OCaml PPX error: " ^ s)
+                  )
+                ; pexp_loc = qloc
+                }
+              | exception _ ->
+                { expr with
+                  pexp_desc = Pexp_extension (
+                    extension_of_error @@
+                    Location.error ~loc ("Unexpected PG'OCaml PPX error.")
+                  )
                 ; pexp_loc = qloc
                 }
             )
         )
       | { pexp_desc =
             Pexp_extension (
-              { txt = "pgsql"; loc }, _)} ->
+              { txt = "pgsql"; loc }
+            , _)
+        ; _
+        } ->
         unsupported loc
       | other ->
         default_mapper.expr mapper other
