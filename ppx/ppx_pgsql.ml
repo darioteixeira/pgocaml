@@ -20,6 +20,7 @@
 open PGOCaml_aux
 open Printf
 
+open Migrate_parsetree.OCaml_404
 open Migrate_parsetree.OCaml_404.Ast.Ast_mapper
 open Migrate_parsetree.OCaml_404.Ast.Ast_helper
 open Migrate_parsetree.OCaml_404.Ast.Asttypes
@@ -45,7 +46,7 @@ let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
   *  otherwise attempt to create a new one from [key] and return that (or an
   *  error).
   *)
-let get_connection key =
+let get_connection ~loc key =
   match Hashtbl.find_opt connections key with
   | Some connection ->
       let open Rresult in
@@ -73,7 +74,8 @@ let get_connection key =
           Error ("Could not make the connection "
             ^ PGOCaml.connection_desc_to_string key
             ^ ", error: "
-            ^ Printexc.to_string err)
+            ^ Printexc.to_string err
+          , loc)
 
 (* Wrapper around [PGOCaml.name_of_type].
 *)
@@ -118,7 +120,19 @@ let rex =
     char '$';
     opt (group (char '@'));
     opt (group (char '?'));
-    group (seq [alt [char '_'; rg 'a' 'z']; rep (alt [char '_'; char '\''; rg 'a' 'z'; rg 'A' 'Z'; rg '0' '9'])]);
+    group (
+      alt [
+        seq [
+          alt [char '_'; rg 'a' 'z'];
+          rep (alt [char '_'; char '\''; rg 'a' 'z'; rg 'A' 'Z'; rg '0' '9'])
+        ];
+        seq [
+          char '{';
+          rep (diff any (char '}'));
+          char '}'
+        ]
+      ]
+    )
     ] |> seq |> compile
 
 let loc_raise loc exn =
@@ -131,7 +145,6 @@ let const_string ~loc str =
     pexp_attributes = []; }
 
 let parse_flags flags loc =
-  (* Parse the flags. *)
   let f_execute = ref false in
   let f_nullable_results = ref false in
   let host = ref None in
@@ -186,7 +199,56 @@ let parse_flags flags loc =
   let key = PGOCaml.describe_connection ?host ?user ?password ?database ?port ?unix_domain_socket_dir () in
   key, f_execute, f_nullable_results, !comment_src_loc
 
-let pgsql_expand ?(flags = []) loc dbh query =
+let mk_conversions ~loc ~dbh results =
+  List.mapi (
+    fun i (result, nullable) ->
+      let field_type = result.PGOCaml.field_type in
+      let modifier = result.PGOCaml.modifier in
+      let fn = name_of_type_wrapper ~modifier dbh field_type in
+      let fn = fn ^ "_of_string" in
+      let col = Exp.ident { txt = Lident ("c" ^ string_of_int i); loc } in
+      if nullable then
+        ([%expr
+          PGOCaml_aux.Option.map
+            PGOCaml.(
+              [%e
+                Exp.ident { txt = Lident fn; loc }
+              ]
+            )
+            [%e col]
+        ]
+        [@metaloc loc])
+      else
+        ([%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
+          (try PGOCaml_aux.Option.get [%e col] with
+            | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
+          )
+        ][@metaloc loc])
+    )
+    results
+
+let coretype_of_type ~loc ?(modifier: int32 option) oid =
+  let typ =
+    match PGOCaml.name_of_type ?modifier oid with
+    | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
+    | nam -> Lident nam
+  in
+  { Parsetree.ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
+  ; ptyp_loc = loc
+  ; ptyp_attributes = []
+  }
+
+(** produce a list pattern to match the result of a query *)
+let mk_listpat ~loc results =
+  List.fold_right
+    (fun i tail ->
+        let var = Pat.var @@ { txt = "c"^string_of_int i; loc } in
+        ([%pat? [%p var]::[%p tail]][@metaloc loc])
+    )
+    (range 0 (List.length results))
+    ([%pat? []][@metaloc loc])
+
+let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let open Rresult in
   let (key, f_execute, f_nullable_results, comment_src_loc) = parse_flags flags loc in
   let query =
@@ -203,7 +265,7 @@ let pgsql_expand ?(flags = []) loc dbh query =
       query
   in
   (* Connect, if necessary, to the database. *)
-  get_connection key
+  get_connection ~loc key
   >>= fun my_dbh ->
   (* Split the query into text and variable name parts using Re.split_full.
    * eg. "select id from employees where name = $name and salary > $salary"
@@ -274,7 +336,17 @@ let pgsql_expand ?(flags = []) loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
          let varname, list, option = List.assoc i varmap in
-         let varname = Exp.ident ~loc { txt = Lident varname; loc } in
+         let varname =
+           if String.starts_with varname "{"
+           then String.sub varname 1 (String.length varname - 2)
+           else varname
+         in
+         let varname =
+           (Migrate_parsetree.Parse.expression
+             Migrate_parsetree.Versions.ocaml_404
+             (Lexing.from_string varname))
+         in
+         let varname = {varname with pexp_loc = loc} in
          let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
          let fn = Exp.ident ~loc { txt = Lident fn; loc } in
          let head =
@@ -368,30 +440,13 @@ let pgsql_expand ?(flags = []) loc dbh query =
             PGOCaml.execute_rev dbh ~name ~params ())
     ][@metaloc loc] in
 
-  (* If we're expecting any result rows, then generate a function to
-   * convert them.  Otherwise return unit.  Note that we can only
-   * determine the nullability of results if they correspond to real
-   * columns in a table, otherwise the type will always be 'type option'.
-  *)
-  match results with
-  | Some results ->
-    let list = List.fold_right
-        (fun i tail ->
-           let var = Pat.var @@ { txt = "c"^string_of_int i; loc } in
-           [%pat? [%p var]::[%p tail]][@metaloc loc]
-        )
-        (range 0 (List.length results))
-        ([%pat? []][@metaloc loc]) in
-    let conversions =
-      List.mapi (
-        fun i result ->
-          let field_type = result.PGOCaml.field_type in
-          let modifier = result.PGOCaml.modifier in
-          let fn = name_of_type_wrapper ~modifier my_dbh field_type in
-          let fn = fn ^ "_of_string" in
-          let fn = Exp.ident ~loc { txt = Lident fn; loc } in
-          let nullable =
-            f_nullable_results ||
+  (** decorate the results with the nullability heuristic *)
+  let results' =
+    match results with
+    | Some results ->
+      Some (
+        List.map
+          (fun ({PGOCaml.field_type; _} as result) ->
             match (result.PGOCaml.table, result.PGOCaml.column) with
             | Some table, Some column ->
               (* Find out whether the column is nullable from the
@@ -406,71 +461,107 @@ let pgsql_expand ?(flags = []) loc dbh query =
                 match _rows with
                 | [ [ Some b ] ] -> PGOCaml.bool_of_string b
                 | _ -> false in
-              not not_nullable
-            | _ -> true (* Assume it could be nullable. *) in
-          let col = Exp.ident ~loc { txt = Lident ("c" ^ string_of_int i); loc } in
-          if nullable then
-            ([%expr PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e col]][@metaloc loc])
-          else
-            ( [%expr PGOCaml.([%e fn])
-                ( try PGOCaml_aux.Option.get [%e col] with
-                  | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
-                )
-              ]
-              [@metaloc loc]
-            )
-      ) results in
+              result, f_nullable_results || not not_nullable
+            | _ -> result, f_nullable_results || true (* Assume it could be nullable. *))
+          results
+      )
+    | None ->
+      None
+  in
+  let mkexpr ~convert ~list = [%expr
+    PGOCaml.bind [%e expr] (fun _rows ->
+        PGOCaml.return
+          (let original_query = [%e const_string ~loc query] in
+            List.rev_map (
+              fun row ->
+                match row with
+                | [%p list] -> [%e convert]
+                | _ ->
+                  (* This should never happen, even if the schema changes.
+                      * Well, maybe if the user does 'SELECT *'.
+                  *)
+                  let msg = "ppx_pgsql: internal error: " ^
+                            "Incorrect number of columns returned from query: " ^
+                            original_query ^
+                            ".  Columns are: " ^
+                            String.concat "; " (
+                              List.map (
+                                function
+                                | Some str -> Printf.sprintf "%S" str
+                                | None -> "NULL"
+                              ) row
+                            ) in
+                  raise (PGOCaml.Error msg)
+            ) _rows))
+  ][@metaloc loc]
+  in
+  (* If we're expecting any result rows, then generate a function to
+   * convert them.  Otherwise return unit.  Note that we can only
+   * determine the nullability of results if they correspond to real
+   * columns in a table, otherwise the type will always be 'type option'.
+  *)
+  match (genobject, results') with
+  | true, Some results ->
+    let list = mk_listpat ~loc results in
+    let fields =
+      List.map
+        (fun ({PGOCaml.name; field_type; _}, nullable) ->
+          name, coretype_of_type ~loc field_type, nullable)
+        results
+    in
     let convert =
+      List.map2
+        (fun (name, _, _) conv ->
+          { pcf_desc = Pcf_method(
+                {txt = name; loc}
+              , Public
+              , Cfk_concrete(Fresh, conv)
+            )
+          ; pcf_loc = loc
+          ; pcf_attributes = []
+          }
+        )
+        fields
+        (mk_conversions ~loc ~dbh:my_dbh results)
+      |> fun fields ->
+          Exp.mk (
+            Pexp_object({
+              pcstr_self = Pat.any ~loc ()
+            ; pcstr_fields = fields
+            })
+          )
+    in
+    let expr = mkexpr ~convert ~list in
+    Ok expr
+  | true, None ->
+    Error("It doesn't make sense to make a module to encapsulate results that aren't coming", loc)
+  | false, Some results ->
+    let list = mk_listpat ~loc results in
+    let convert =
+      let conversions = mk_conversions ~loc ~dbh:my_dbh results in
       (* Avoid generating a single-element tuple. *)
       match conversions with
       | [] -> [%expr ()][@metaloc loc]
       | [a] -> a
       | conversions -> Exp.tuple conversions
     in
-    let expr = [%expr
-      PGOCaml.bind [%e expr] (fun _rows ->
-          PGOCaml.return
-            (let original_query = [%e const_string ~loc query] in
-             List.rev_map (
-               fun row ->
-                 match row with
-                 | [%p list] -> [%e convert]
-                 | _ ->
-                   (* This should never happen, even if the schema changes.
-                        * Well, maybe if the user does 'SELECT *'.
-                   *)
-                   let msg = "ppx_pgsql: internal error: " ^
-                             "Incorrect number of columns returned from query: " ^
-                             original_query ^
-                             ".  Columns are: " ^
-                             String.concat "; " (
-                               List.map (
-                                 function
-                                 | Some str -> Printf.sprintf "%S" str
-                                 | None -> "NULL"
-                               ) row
-                             ) in
-                   raise (PGOCaml.Error msg)
-             ) _rows))
-    ][@metaloc loc]
-    in
-    Ok expr
-  | None ->
-    Ok([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
+    Ok(mkexpr ~convert ~list)
+  | false, None ->
+    Ok ([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
 
-let expand_sql loc dbh extras =
+let expand_sql ~genobject loc dbh extras =
      let query, flags =
        match List.rev extras with
        | [] -> assert false
        | query :: flags -> query, flags in
-     try pgsql_expand ~flags loc dbh query
+     try pgsql_expand ~genobject ~flags loc dbh query
      with
-     | Failure s -> Error s
-     | PGOCaml.Error s -> Error s
+     | Failure s -> Error(s, loc)
+     | PGOCaml.Error s -> Error(s, loc)
      | PGOCaml.PostgreSQL_Error (s, fields) ->
        let fields' = List.map (fun (c, s) -> Printf.sprintf "(%c: %s)" c s) fields in
-       Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields')
-     | _ -> Error "Unexpected PG'OCaml PPX error."
+       Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields', loc)
+     | _ -> Error("Unexpected PG'OCaml PPX error.", loc)
 
 (* Returns the empty list if one of the elements is not a string constant *)
 let list_of_string_args mapper args =
@@ -506,32 +597,27 @@ let pgocaml_mapper _argv =
       match expr with
       | { pexp_desc =
             Pexp_extension (
-              { txt = "pgsql"; loc },
-              PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _}, _); _}]
+              { txt ; loc }
+            , PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _}, _); _}]
             )
+        ; pexp_attributes = attributes
         ; _
-        } ->
+        } when String.starts_with txt "pgsql" ->
+        let open Rresult in
+        let genobject = txt = "pgsql.object" in
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
-            ( match expand_sql loc dbh args with
+            let x = expand_sql ~genobject loc dbh args in
+            ( match x with
               | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
                 {pexp_desc; pexp_loc = qloc; pexp_attributes}
-              | Error s ->
+              | Error(s, loc) ->
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc ("PG'OCaml PPX error: " ^ s)
-                  )
-                ; pexp_loc = qloc
-                }
-              | exception _ ->
-                { expr with
-                  pexp_desc = Pexp_extension (
-                    extension_of_error @@
-                    Location.error ~loc ("Unexpected PG'OCaml PPX error.")
-                  )
-                ; pexp_loc = qloc
+                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
+                ; pexp_loc = loc
                 }
             )
         )
