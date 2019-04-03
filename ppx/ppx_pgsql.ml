@@ -136,7 +136,6 @@ let rex =
     ] |> seq |> compile
 
 let loc_raise loc exn =
-  Printf.fprintf stderr "loc_raise %s\n%!" (Printexc.to_string exn);
   raise exn
 
 let const_string ~loc str =
@@ -561,7 +560,7 @@ let expand_sql ~genobject loc dbh extras =
      | PGOCaml.PostgreSQL_Error (s, fields) ->
        let fields' = List.map (fun (c, s) -> Printf.sprintf "(%c: %s)" c s) fields in
        Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields', loc)
-     | _ -> Error("Unexpected PG'OCaml PPX error.", loc)
+     | exn -> Error("Unexpected PG'OCaml PPX error: " ^ Printexc.to_string exn, loc)
 
 (* Returns the empty list if one of the elements is not a string constant *)
 let list_of_string_args mapper args =
@@ -600,7 +599,6 @@ let pgocaml_mapper _argv =
               { txt ; loc }
             , PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _}, _); _}]
             )
-        ; pexp_attributes = attributes
         ; _
         } when String.starts_with txt "pgsql" ->
         let open Rresult in
