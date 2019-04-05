@@ -113,3 +113,7 @@ Test "pgocaml_highlevel"
 Test "test_re"
   Command:              $test_re
   WorkingDirectory:     tests
+
+Test "test_ppx"
+ Command: $test_ppx
+ WorkingDirectory: tests_ppx 

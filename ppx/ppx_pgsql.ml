@@ -247,7 +247,7 @@ let mk_listpat ~loc results =
     (range 0 (List.length results))
     ([%pat? []][@metaloc loc])
 
-let pgsql_expand ~genobject ?(flags = []) loc dbh query =
+let pgsql_expand ~genobject ~wrapobject ?(flags = []) loc dbh query =
   let open Rresult in
   let (key, f_execute, f_nullable_results, comment_src_loc) = parse_flags flags loc in
   let query =
@@ -428,15 +428,17 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
       (* Have we prepared this statement already?  If not, do so. *)
       let is_prepared = Hashtbl.mem hash name in
       PGOCaml.bind
-        (if not is_prepared then
-           PGOCaml.bind (PGOCaml.prepare dbh ~name ~query ()) (fun () ->
-               Hashtbl.add hash name true;
-               PGOCaml.return ()
-             )
-         else
-           PGOCaml.return ()) (fun () ->
-            (* Execute the statement, returning the rows. *)
-            PGOCaml.execute_rev dbh ~name ~params ())
+        ( if not is_prepared then
+            PGOCaml.bind
+              (PGOCaml.prepare dbh ~name ~query ())
+              (fun () ->
+                Hashtbl.add hash name true;
+                PGOCaml.return ())
+          else
+            PGOCaml.return ())
+        (fun () ->
+          (* Execute the statement, returning the rows. *)
+          PGOCaml.execute_rev dbh ~name ~params ())
     ][@metaloc loc] in
 
   (** decorate the results with the nullability heuristic *)
@@ -502,33 +504,149 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   match (genobject, results') with
   | true, Some results ->
     let list = mk_listpat ~loc results in
-    let fields =
-      List.map
-        (fun ({PGOCaml.name; field_type; _}, nullable) ->
-          name, coretype_of_type ~loc field_type, nullable)
-        results
-    in
     let convert =
-      List.map2
-        (fun (name, _, _) conv ->
-          { pcf_desc = Pcf_method(
-                {txt = name; loc}
-              , Public
-              , Cfk_concrete(Fresh, conv)
-            )
-          ; pcf_loc = loc
-          ; pcf_attributes = []
-          }
-        )
-        fields
-        (mk_conversions ~loc ~dbh:my_dbh results)
-      |> fun fields ->
-          Exp.mk (
-            Pexp_object({
-              pcstr_self = Pat.any ~loc ()
-            ; pcstr_fields = fields
-            })
+      let fields =
+        List.map
+          (fun ({PGOCaml.name; table; _}, _) ->
+            name, table
           )
+          results
+      in
+      (* we need a list of methods for the object *)
+      let kids =
+        if wrapobject
+        then begin
+          let module SMap = Map.Make(String) in
+          let query = "SELECT relname,oid FROM pg_class" in
+          let query_nam = "tables_oids_pgsql" in
+          let () = PGOCaml.prepare my_dbh ~name:query_nam ~query () in
+          let rows = PGOCaml.execute my_dbh ~name:query_nam ~params:[] () in
+          let module OIDsMap = Map.Make(struct
+            type t = int32
+            let compare = compare
+          end)
+          in
+          (* need to be able to get the name of a table from an OID *)
+          let oidsmap =
+            List.fold_left
+              (fun map [Some nam; Some oid] ->
+                OIDsMap.add (Int32.of_string oid) nam map)
+              OIDsMap.empty
+              rows
+          in
+          let descs =
+            List.map2
+              (fun (name, table) conv -> (name, table), conv)
+              fields
+              (mk_conversions ~loc ~dbh:my_dbh results)
+          in
+          let module FieldSet = Set.Make(struct
+            type t = (string * expression)
+            (* I've heard that the generic [compare] function is bad, but I'm
+               not about to write a comparator for [expression]s *)
+            let compare (a:t) (b:t) = compare a b
+          end)
+          in
+          let module StringMap = Map.Make(struct
+            type t = string option
+            let compare = compare
+          end) in
+          (* we need to collect the columns into tables *)
+          let collected =
+            List.fold_left
+              (fun acc ((label, oid), conv) ->
+                let tnam =
+                  match oid with
+                    | None -> None
+                    | Some oid -> Some(OIDsMap.find oid oidsmap)
+                in
+                let new_val =
+                  match StringMap.find_opt tnam acc with
+                    | Some fs -> FieldSet.add (label, conv) fs
+                    | None -> FieldSet.singleton (label, conv)
+                in
+                (* make sure that there's only one definition of any given set *)
+                StringMap.remove tnam acc
+                |> StringMap.add tnam new_val
+              )
+              StringMap.empty
+              descs
+          in
+          let sub_methods =
+            StringMap.bindings collected
+            |> List.map
+                  (fun (tnam, fields) ->
+                    let fields = FieldSet.elements fields in
+                    match tnam with
+                      | Some nam ->
+                        (* make a sub-object *)
+                        let methods =
+                          List.map
+                            (fun (name, conv) ->
+                              { pcf_desc = Pcf_method(
+                                    {txt = name; loc}
+                                  , Public
+                                  , Cfk_concrete(Fresh, conv)
+                                )
+                              ; pcf_loc = loc
+                              ; pcf_attributes = []
+                              })
+                            fields
+                        in
+                        let sub_object = Exp.mk (
+                            Pexp_object({
+                              pcstr_self = Pat.any ~loc ()
+                            ; pcstr_fields = methods
+                            })
+                          )
+                        in
+                        [ { pcf_desc = Pcf_method(
+                                {txt = nam; loc}
+                              , Public
+                              , Cfk_concrete(Fresh, sub_object)
+                            )
+                          ; pcf_loc = loc
+                          ; pcf_attributes = []
+                          }
+                        ]
+                      | None ->
+                        (* all the fields that aren't associated with a table *)
+                        List.map
+                          (fun (name, conv) ->
+                            { pcf_desc = Pcf_method(
+                                  {txt = name; loc}
+                                , Public
+                                , Cfk_concrete(Fresh, conv)
+                              )
+                            ; pcf_loc = loc
+                            ; pcf_attributes = []
+                            })
+                          fields
+                  )
+          in
+          List.flatten sub_methods
+        end
+        else
+          List.map2
+            (fun (name, _table) conv ->
+              { pcf_desc = Pcf_method(
+                    {txt = name; loc}
+                  , Public
+                  , Cfk_concrete(Fresh, conv)
+                )
+              ; pcf_loc = loc
+              ; pcf_attributes = []
+              }
+            )
+            fields
+            (mk_conversions ~loc ~dbh:my_dbh results)
+      in
+      Exp.mk (
+        Pexp_object({
+          pcstr_self = Pat.any ~loc ()
+        ; pcstr_fields = kids
+        })
+      )
     in
     let expr = mkexpr ~convert ~list in
     Ok expr
@@ -548,12 +666,12 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   | false, None ->
     Ok ([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
 
-let expand_sql ~genobject loc dbh extras =
+let expand_sql ~genobject ~wrapobject loc dbh extras =
      let query, flags =
        match List.rev extras with
        | [] -> assert false
        | query :: flags -> query, flags in
-     try pgsql_expand ~genobject ~flags loc dbh query
+     try pgsql_expand ~genobject ~wrapobject ~flags loc dbh query
      with
      | Failure s -> Error(s, loc)
      | PGOCaml.Error s -> Error(s, loc)
@@ -602,20 +720,21 @@ let pgocaml_mapper _argv =
         ; _
         } when String.starts_with txt "pgsql" ->
         let open Rresult in
-        let genobject = txt = "pgsql.object" in
+        let genobject = txt = "pgsql.object" || txt = "pgsql.nestedobject" in
+        let wrapobject = txt = "pgsql.nestedobject" in
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
-            let x = expand_sql ~genobject loc dbh args in
+            let x = expand_sql ~genobject ~wrapobject loc dbh args in
             ( match x with
               | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
                 {pexp_desc; pexp_loc = qloc; pexp_attributes}
-              | Error(s, loc) ->
+              | Error(s, errloc) ->
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
-                ; pexp_loc = loc
+                    Location.error ~loc:errloc ("PG'OCaml PPX error: " ^ s))
+                ; pexp_loc = errloc
                 }
             )
         )
