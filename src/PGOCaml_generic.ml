@@ -1781,10 +1781,10 @@ let inet_of_string =
     |> compile in
   fun str ->
     let subs = Re.exec re str in
-    let addr = Unix.inet_addr_of_string (Re.get subs 1) in
-    let mask = try (Re.get subs 3) with Not_found -> "" in (* optional match *)
+    let addr = Unix.inet_addr_of_string (Re.Group.get subs 1) in
+    let mask = try (Re.Group.get subs 3) with Not_found -> "" in (* optional match *)
     if mask = ""
-    then (addr, (if (Re.get subs 2) = "." then 32 else 128))
+    then (addr, (if (Re.Group.get subs 2) = "." then 32 else 128))
     else (addr, int_of_string mask)
 
 let point_of_string =
@@ -1805,7 +1805,7 @@ let point_of_string =
   fun str ->
     try
       let subs = Re.exec point_re str in
-      (float_of_string (Re.get subs 1), float_of_string (Re.get subs 2))
+      (float_of_string (Re.Group.get subs 1), float_of_string (Re.Group.get subs 2))
     with
     | _ -> failwith "point_of_string"
 
@@ -1866,7 +1866,7 @@ let re_interval =
 
 let interval_of_string =
   let int_opt subs i =
-    try int_of_string (Re.get subs i) with
+    try int_of_string (Re.Group.get subs i) with
     | Not_found -> 0 in
   fun str ->
     try

@@ -276,7 +276,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let split =
     let f = function
       | `Text text -> `Text text
-      | `Delim subs -> `Var (Re.get subs 3, Re.test subs 1, Re.test subs 2)
+      | `Delim subs -> `Var (Re.Group.get subs 3, Re.test subs 1, Re.test subs 2)
     in List.map f (Re.split_full rex query) in
 
   (* Go to the database, prepare this statement, and find out exactly
