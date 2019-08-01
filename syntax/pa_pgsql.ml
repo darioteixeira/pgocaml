@@ -96,14 +96,15 @@ let name_of_type_wrapper ?modifier dbh oid =
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh orig_type =
+let unravel_type ?modifier dbh orig_type =
   let rec unravel_type_aux ft =
     try
-      name_of_type_wrapper dbh ft
+      name_of_type_wrapper ?modifier dbh ft
     with PGOCaml.Error msg as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
       match rows with
+        | [ [ Some typtype ; _ ] ] when typtype = "e" -> "string"
         | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
@@ -370,7 +371,7 @@ let pgsql_expand ?(flags = []) _loc dbh query =
 	  fun i result ->
 	    let field_type = result.PGOCaml.field_type in
 	    let modifier = result.PGOCaml.modifier in
-	    let fn = name_of_type_wrapper ~modifier my_dbh field_type in
+	    let fn = unravel_type ~modifier my_dbh field_type in
 	    let fn = fn ^ "_of_string" in
 	    let nullable =
 	      f_nullable_results ||
