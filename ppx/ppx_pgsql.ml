@@ -20,12 +20,12 @@
 open PGOCaml_aux
 open Printf
 
-open Migrate_parsetree.OCaml_404
-open Migrate_parsetree.OCaml_404.Ast.Ast_mapper
-open Migrate_parsetree.OCaml_404.Ast.Ast_helper
-open Migrate_parsetree.OCaml_404.Ast.Asttypes
-open Migrate_parsetree.OCaml_404.Ast.Parsetree
-open Migrate_parsetree.OCaml_404.Ast.Longident
+open Migrate_parsetree
+open Migrate_parsetree.Ast_404.Ast_mapper
+open Migrate_parsetree.Ast_404.Ast_helper
+open Migrate_parsetree.Ast_404.Asttypes
+open Migrate_parsetree.Ast_404.Parsetree
+open Migrate_parsetree.Ast_404.Longident
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -227,9 +227,9 @@ let mk_conversions ~loc ~dbh results =
     )
     results
 
-let coretype_of_type ~loc ?(modifier: int32 option) oid =
+let coretype_of_type ~loc ~dbh ?(modifier: int32 option) oid =
   let typ =
-    match PGOCaml.name_of_type ?modifier oid with
+    match unravel_type dbh ?modifier oid with
     | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
     | nam -> Lident nam
   in
@@ -506,7 +506,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     let fields =
       List.map
         (fun ({PGOCaml.name; field_type; _}, nullable) ->
-          name, coretype_of_type ~loc field_type, nullable)
+          name, coretype_of_type ~loc ~dbh:my_dbh field_type, nullable)
         results
     in
     let convert =
@@ -557,7 +557,10 @@ let expand_sql ~genobject loc dbh extras =
      try pgsql_expand ~genobject ~flags loc dbh query
      with
      | Failure s -> Error(s, loc)
-     | PGOCaml.Error s -> Error(s, loc)
+     | PGOCaml.Error s ->
+       let s = sprintf "%s - %s" s @@ Printexc.get_backtrace() in
+       fprintf stderr "%s" s;
+       Error(s, loc)
      | PGOCaml.PostgreSQL_Error (s, fields) ->
        let fields' = List.map (fun (c, s) -> Printf.sprintf "(%c: %s)" c s) fields in
        Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields', loc)
@@ -615,7 +618,7 @@ let pgocaml_mapper _argv =
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
+                    Location.error ~loc ("FUUUUCK!!! PG'OCaml PPX error: " ^ s))
                 ; pexp_loc = loc
                 }
             )
