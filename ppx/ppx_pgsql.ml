@@ -232,7 +232,7 @@ let coretype_of_type ~loc ?(modifier: int32 option) oid =
     | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
     | nam -> Lident nam
   in
-  { Parsetree.ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
+  { ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
   ; ptyp_loc = loc
   ; ptyp_attributes = []
   }

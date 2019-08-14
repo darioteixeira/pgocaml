@@ -39,7 +39,9 @@ Library "pa_pgsql"
   FindlibName:          syntax
   XMETAType:            syntax
   XMETADescription:     Syntax extension for PG'OCaml
-  XMETARequires:        pgocaml, camlp4
+  XMETARequires:        pgocaml
+  XMETAExtraLines:
+    requires(syntax) = "camlp4"
 
 Library "ppx_pgsql"
   Path:                 ppx
