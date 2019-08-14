@@ -57,7 +57,7 @@ Executable "ppx_pgsql"
   Build$:               flag(ppx)
   CompiledObject:       byte
   MainIs:               ppx_pgsql.ml
-  BuildDepends:         rresult, pgocaml, compiler-libs.common, ppx_tools_versioned.metaquot_404, ocaml-migrate-parsetree
+  BuildDepends:         rresult, pgocaml, compiler-libs.common, ppx_tools_versioned.metaquot_407, ocaml-migrate-parsetree
 
 Document "APIDOC"
   Install:              true

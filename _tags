@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 508f23de3f67c482a1b0488387a31aec)
+# DO NOT EDIT (digest: 60049e832e5335ee55b15cf930d903a5)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -45,7 +45,7 @@ true: annot, bin_annot
 "ppx/ppx_pgsql.byte": pkg_csv
 "ppx/ppx_pgsql.byte": pkg_hex
 "ppx/ppx_pgsql.byte": pkg_ocaml-migrate-parsetree
-"ppx/ppx_pgsql.byte": pkg_ppx_tools_versioned.metaquot_404
+"ppx/ppx_pgsql.byte": pkg_ppx_tools_versioned.metaquot_407
 "ppx/ppx_pgsql.byte": pkg_re
 "ppx/ppx_pgsql.byte": pkg_rresult
 "ppx/ppx_pgsql.byte": pkg_unix
@@ -56,7 +56,7 @@ true: annot, bin_annot
 <ppx/*.ml{,i,y}>: pkg_csv
 <ppx/*.ml{,i,y}>: pkg_hex
 <ppx/*.ml{,i,y}>: pkg_ocaml-migrate-parsetree
-<ppx/*.ml{,i,y}>: pkg_ppx_tools_versioned.metaquot_404
+<ppx/*.ml{,i,y}>: pkg_ppx_tools_versioned.metaquot_407
 <ppx/*.ml{,i,y}>: pkg_re
 <ppx/*.ml{,i,y}>: pkg_rresult
 <ppx/*.ml{,i,y}>: pkg_unix
@@ -131,7 +131,7 @@ true: annot, bin_annot
 "tests_ppx/test_ppx.byte": pkg_hex
 "tests_ppx/test_ppx.byte": pkg_oUnit
 "tests_ppx/test_ppx.byte": pkg_ocaml-migrate-parsetree
-"tests_ppx/test_ppx.byte": pkg_ppx_tools_versioned.metaquot_404
+"tests_ppx/test_ppx.byte": pkg_ppx_tools_versioned.metaquot_407
 "tests_ppx/test_ppx.byte": pkg_re
 "tests_ppx/test_ppx.byte": pkg_rresult
 "tests_ppx/test_ppx.byte": pkg_unix
@@ -143,7 +143,7 @@ true: annot, bin_annot
 <tests_ppx/*.ml{,i,y}>: pkg_hex
 <tests_ppx/*.ml{,i,y}>: pkg_oUnit
 <tests_ppx/*.ml{,i,y}>: pkg_ocaml-migrate-parsetree
-<tests_ppx/*.ml{,i,y}>: pkg_ppx_tools_versioned.metaquot_404
+<tests_ppx/*.ml{,i,y}>: pkg_ppx_tools_versioned.metaquot_407
 <tests_ppx/*.ml{,i,y}>: pkg_re
 <tests_ppx/*.ml{,i,y}>: pkg_rresult
 <tests_ppx/*.ml{,i,y}>: pkg_unix
