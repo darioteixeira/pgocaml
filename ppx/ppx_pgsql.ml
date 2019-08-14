@@ -21,11 +21,11 @@ open PGOCaml_aux
 open Printf
 
 open Migrate_parsetree
-open Migrate_parsetree.Ast_404.Ast_mapper
-open Migrate_parsetree.Ast_404.Ast_helper
-open Migrate_parsetree.Ast_404.Asttypes
-open Migrate_parsetree.Ast_404.Parsetree
-open Migrate_parsetree.Ast_404.Longident
+open Migrate_parsetree.Ast_407.Ast_mapper
+open Migrate_parsetree.Ast_407.Ast_helper
+open Migrate_parsetree.Ast_407.Asttypes
+open Migrate_parsetree.Ast_407.Parsetree
+open Migrate_parsetree.Ast_407.Longident
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -82,7 +82,7 @@ let get_connection ~loc key =
 let name_of_type_wrapper ?modifier dbh oid =
   try
     PGOCaml.name_of_type ?modifier oid
-  with PGOCaml.Error msg as exc ->
+  with PGOCaml.Error _ as exc ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
     let rows = PGOCaml.execute dbh ~name:typname_name ~params () in
     match rows with
@@ -100,7 +100,7 @@ let unravel_type dbh ?modifier orig_type =
   let rec unravel_type_aux ft =
     try
       name_of_type_wrapper ?modifier dbh ft
-    with PGOCaml.Error msg as exc ->
+    with PGOCaml.Error _ as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
       match rows with
@@ -136,7 +136,7 @@ let rex =
     )
     ] |> seq |> compile
 
-let loc_raise loc exn =
+let loc_raise _ exn =
   raise exn
 
 let const_string ~loc str =
@@ -277,7 +277,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let split =
     let f = function
       | `Text text -> `Text text
-      | `Delim subs -> `Var (Re.Group.get subs 3, Re.test subs 1, Re.test subs 2)
+      | `Delim subs -> `Var Re.Group.(get subs 3, test subs 1, test subs 2)
     in List.map f (Re.split_full rex query) in
 
   (* Go to the database, prepare this statement, and find out exactly
@@ -343,7 +343,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
          in
          let varname =
            (Migrate_parsetree.Parse.expression
-             Migrate_parsetree.Versions.ocaml_404
+             Migrate_parsetree.Versions.ocaml_407
              (Lexing.from_string varname))
          in
          let varname = {varname with pexp_loc = loc} in
@@ -446,7 +446,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     | Some results ->
       Some (
         List.map
-          (fun ({PGOCaml.field_type; _} as result) ->
+          (fun result ->
             match (result.PGOCaml.table, result.PGOCaml.column) with
             | Some table, Some column ->
               (* Find out whether the column is nullable from the
@@ -635,9 +635,10 @@ let pgocaml_mapper _argv =
   }
 
 let migration =
-  Migrate_parsetree.(Versions.migrate Versions.ocaml_404 Versions.ocaml_current)
+  Versions.migrate Versions.ocaml_407 Versions.ocaml_current
 
 let _ =
+  Ast_mapper.register "pgocaml" pgocaml_mapper;
   Migrate_parsetree.Compiler_libs.Ast_mapper.register
     "pgocaml"
     (fun args -> migration.copy_mapper (pgocaml_mapper args))
