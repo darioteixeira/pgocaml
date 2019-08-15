@@ -557,10 +557,7 @@ let expand_sql ~genobject loc dbh extras =
      try pgsql_expand ~genobject ~flags loc dbh query
      with
      | Failure s -> Error(s, loc)
-     | PGOCaml.Error s ->
-       let s = sprintf "%s - %s" s @@ Printexc.get_backtrace() in
-       fprintf stderr "%s" s;
-       Error(s, loc)
+     | PGOCaml.Error s -> Error(s, loc)
      | PGOCaml.PostgreSQL_Error (s, fields) ->
        let fields' = List.map (fun (c, s) -> Printf.sprintf "(%c: %s)" c s) fields in
        Error ("Postgres backend error: " ^ s ^ ": " ^ s ^ String.concat "," fields', loc)
@@ -586,7 +583,7 @@ let list_of_string_args mapper args =
   else
     List.map (function Some x -> x | None -> assert false) maybe_strs
 
-let pgocaml_mapper _argv =
+let pgocaml_rewriter config cookies =
   { default_mapper with
     expr = fun mapper expr ->
       let unsupported loc =
@@ -618,7 +615,7 @@ let pgocaml_mapper _argv =
                 { expr with
                   pexp_desc = Pexp_extension (
                     extension_of_error @@
-                    Location.error ~loc ("FUUUUCK!!! PG'OCaml PPX error: " ^ s))
+                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
                 ; pexp_loc = loc
                 }
             )
@@ -634,11 +631,15 @@ let pgocaml_mapper _argv =
         default_mapper.expr mapper other
   }
 
-let migration =
+(*let migration =
   Versions.migrate Versions.ocaml_407 Versions.ocaml_current
 
 let _ =
-  Ast_mapper.register "pgocaml" pgocaml_mapper;
   Migrate_parsetree.Compiler_libs.Ast_mapper.register
     "pgocaml"
     (fun args -> migration.copy_mapper (pgocaml_mapper args))
+*)
+
+let () =
+  Driver.register ~name:"pgocaml" ~reset_args:(fun _ -> ()) ~args:[]
+    Versions.ocaml_407 pgocaml_rewriter
