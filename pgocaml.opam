@@ -10,7 +10,7 @@ bug-reports: "https://github.com/darioteixeira/pgocaml/issues"
 dev-repo: "git+https://github.com/darioteixeira/pgocaml.git"
 license: "LGPL-2.0 with OCaml linking exception"
 build: [
-  ["dune" "build"]
+  ["dune" "build" "--profile" "release"]
   ["dune" "build" "@doc"]
 ]
 install: [["dune" "install"]]
