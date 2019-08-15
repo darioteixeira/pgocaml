@@ -79,9 +79,9 @@ let get_connection ~loc key =
 
 (* Wrapper around [PGOCaml.name_of_type].
 *)
-let name_of_type_wrapper ?modifier dbh oid =
+let name_of_type_wrapper (*?modifier*) dbh oid =
   try
-    PGOCaml.name_of_type ?modifier oid
+    PGOCaml.name_of_type (*?modifier*) oid
   with PGOCaml.Error _ as exc ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
     let rows = PGOCaml.execute dbh ~name:typname_name ~params () in
@@ -96,10 +96,10 @@ let name_of_type_wrapper ?modifier dbh oid =
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh ?modifier orig_type =
+let unravel_type dbh (*?modifier*) orig_type =
   let rec unravel_type_aux ft =
     try
-      name_of_type_wrapper ?modifier dbh ft
+      name_of_type_wrapper (*?modifier*) dbh ft
     with PGOCaml.Error _ as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
@@ -203,8 +203,8 @@ let mk_conversions ~loc ~dbh results =
   List.mapi (
     fun i (result, nullable) ->
       let field_type = result.PGOCaml.field_type in
-      let modifier = result.PGOCaml.modifier in
-      let fn = unravel_type ~modifier dbh field_type in
+      (*let modifier = result.PGOCaml.modifier in*)
+      let fn = unravel_type (*~modifier*) dbh field_type in
       let fn = fn ^ "_of_string" in
       let col = Exp.ident { txt = Lident ("c" ^ string_of_int i); loc } in
       if nullable then
@@ -227,9 +227,9 @@ let mk_conversions ~loc ~dbh results =
     )
     results
 
-let coretype_of_type ~loc ~dbh ?(modifier: int32 option) oid =
+let coretype_of_type ~loc ~dbh (*?(modifier: int32 option)*) oid =
   let typ =
-    match unravel_type dbh ?modifier oid with
+    match unravel_type dbh (*?modifier*) oid with
     | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
     | nam -> Lident nam
   in
@@ -583,7 +583,7 @@ let list_of_string_args mapper args =
   else
     List.map (function Some x -> x | None -> assert false) maybe_strs
 
-let pgocaml_rewriter config cookies =
+let pgocaml_rewriter _(*config*) _(*cookies*) =
   { default_mapper with
     expr = fun mapper expr ->
       let unsupported loc =
