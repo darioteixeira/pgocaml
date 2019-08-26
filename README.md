@@ -82,6 +82,8 @@ let () =
   PGOCaml.close(dbh)
 ```
 
+## Objects
+
 The PPX allows you to specify that queries returning results should be returned as
 objects, rather than tuples. This is not currently supported in the Camlp4 version
 (which is being deprecated).
@@ -96,11 +98,35 @@ List.iter
   res
 ```
 
+## Nested objects
+
+It is possible to generate objects which are further broken down so that columns
+from different tables are nested in their own sub-objects.
+
+```ocaml
+let%lwt res =
+  [%pgsql.nestedobject
+    dbh
+    "SELECT employees.*,owners.* FROM employees LEFT JOIN owners ON employees.name = owners.name"
+  ]
+in
+List.iter
+  (fun row ->
+    Printf.printf
+      "%s has %d shares and is paid %f.\n"
+      row#employees#name
+      (Int32.to_int row#owners#shares)
+      row#employees#salary)
+  rows
+```
+
+## Complex expressions as values within queries
+
 The PPX now also supports `${...}` expansions.
 
 ```ocaml
 (* where [e] is a row returned by a [pgsql.object] query *)
-let%lwt incr_sal e =
+let incr_sal e =
   [%pgsql dbh "UPDATE employees SET salary = ${e#salary +. 1.0}"]
 ```
 
