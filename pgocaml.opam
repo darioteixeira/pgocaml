@@ -25,4 +25,3 @@ depends: [
   "ocaml" {>= "4.05"}
   "re"
 ]
-flags: light-uninstall
