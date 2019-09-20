@@ -1,0 +1,13 @@
+(rule
+  (targets PGOCaml_config.ml)
+  (deps PGOCaml_config.ml.in)
+  (action
+    (with-stdout-to PGOCaml_config.ml (run ./genconfig.sh))))
+
+(library
+  (name PGOCaml)
+  (public_name pgocaml)
+  (libraries unix calendar csv re bytes hex rresult)
+  (wrapped false)
+  (modules PGOCaml_aux PGOCaml PGOCaml_generic PGOCaml_config))
+

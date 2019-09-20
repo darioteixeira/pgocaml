@@ -1,0 +1,9 @@
+(executable
+  (name test_ppx)
+  (libraries oUnit result pgocaml.ppx)
+  (preprocess (pps pgocaml.ppx)))
+
+(alias
+  (name runtest)
+  (deps test_ppx.exe)
+  (action (run %{deps})))

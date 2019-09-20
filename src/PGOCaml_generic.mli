@@ -195,9 +195,9 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 type oid = int32
 
-type param = string option (** None is NULL. *)
-type result = string option (** None is NULL. *)
-type row = result list (** One row is a list of fields. *)
+type param = string option (* None is NULL. *)
+type result = string option (* None is NULL. *)
+type row = result list (* One row is a list of fields. *)
 
 val prepare : 'a t -> query:string -> ?name:string -> ?types:oid list -> unit -> unit monad
 (** [prepare conn ~query ?name ?types ()] prepares the statement
@@ -272,7 +272,7 @@ val describe_portal : 'a t -> ?portal:string -> unit -> row_description option m
 
 (** {6 Low level type conversion functions - DO NOT USE DIRECTLY} *)
 
-val name_of_type : ?modifier:int32 -> oid -> string
+val name_of_type : (*?modifier:int32 ->*) oid -> string
 (** Returns the OCaml equivalent type name to the PostgreSQL type
     [oid].
 
