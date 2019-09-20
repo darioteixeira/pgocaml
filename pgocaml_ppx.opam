@@ -1,11 +1,12 @@
 opam-version: "2.0"
-synopsis: "Native OCaml interface to PostgreSQL databases"
+synopsis: "Interface to PostgreSQL databases"
 description: """
 PGOCaml provides an interface to PostgreSQL databases for OCaml applications.
-Note that it speaks the PostgreSQL wire protocol directly, and therefore does
-not need to create bindings to the PostgreSQL libpq C library.
-The PPX syntax extension is now packaged separately as 'pgocaml_ppx'.
-You will want to take a look at it if you're considering using PGOCaml.
+It includes a PPX syntax extension enabling one to directly embed SQL
+statements inside the OCaml code. The syntax extension uses the 'describe'
+feature of PostgreSQL to obtain type information about the database. This
+allows PGOCaml to check at compile-time if the program is indeed consistent
+with the database structure.
 """
 maintainer: "dario.teixeira@nleyten.com"
 authors: ["Richard W.M. Jones <rich@annexia.org>"]
@@ -18,11 +19,17 @@ build: [
 ]
 install: [["dune" "install"]]
 depends: [
+  "base-bytes"
   "calendar"
   "csv"
   "dune" {build}
   "hex"
   "ocaml" {>= "4.05"}
+  "pgocaml" {= version}
+  "ppx_tools" {build}
   "re"
+  "rresult" {build}
+  "ocaml-migrate-parsetree"
+  "ppx_tools_versioned"
 ]
 flags: light-uninstall

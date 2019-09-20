@@ -1,6 +1,6 @@
 (library
   (name pgocaml_ppx)
-  (public_name pgocaml.ppx)
+  (public_name pgocaml_ppx)
   (kind ppx_rewriter)
   (preprocess
     (pps ppx_tools_versioned.metaquot_407))

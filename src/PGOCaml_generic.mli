@@ -272,7 +272,7 @@ val describe_portal : 'a t -> ?portal:string -> unit -> row_description option m
 
 (** {6 Low level type conversion functions - DO NOT USE DIRECTLY} *)
 
-val name_of_type : (*?modifier:int32 ->*) oid -> string
+val name_of_type : oid -> string
 (** Returns the OCaml equivalent type name to the PostgreSQL type
     [oid].
 

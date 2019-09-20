@@ -273,7 +273,7 @@ val describe_portal : 'a t -> ?portal:string -> unit -> row_description option m
 
 (** {6 Low level type conversion functions - DO NOT USE DIRECTLY} *)
 
-val name_of_type : (*?modifier:int32 ->*) oid -> string
+val name_of_type : oid -> string
 (** Returns the OCaml equivalent type name to the PostgreSQL type [oid].
   * For instance, [name_of_type (Int32.of_int 23)] returns ["int32"] because
   * the OID for PostgreSQL's internal [int4] type is [23].  As another
@@ -432,10 +432,6 @@ let add_int32 (buf, _) i =
   Buffer.add_char buf (Char.unsafe_chr ((base lsr 8) land 0xff));
   Buffer.add_char buf (Char.unsafe_chr (base land 0xff))
 
-(*let add_int64 msg i =
-  add_int32 msg (Int64.to_int32 (Int64.shift_right_logical i 32));
-  add_int32 msg (Int64.to_int32 i)
-*)
 let add_string_no_trailing_nil (buf, _) str =
   (* Check the string doesn't contain '\0' characters. *)
   if String.contains str '\000' then
@@ -448,7 +444,7 @@ let add_string msg str =
   add_string_no_trailing_nil msg str;
   add_byte msg 0
 
-let send_message { chan = chan; _ } (buf, typ) =
+let send_message { chan; _ } (buf, typ) =
   (* Get the length in bytes. *)
   let len = 4 + Buffer.length buf in
 
@@ -484,7 +480,7 @@ let max_message_length = ref Sys.max_string_length
 (* Receive a single result message.  Parse out the message type,
  * message length, and binary message content.
  *)
-let receive_message { ichan = ichan; chan = chan; _ } =
+let receive_message { ichan; chan; _ } =
   (* Flush output buffer. *)
   flush chan >>= fun () ->
 
@@ -936,7 +932,7 @@ let profile_op uuid op detail f =
        *)
       let fd = Unix.descr_of_out_channel chan in
       Unix.lockf fd Unix.F_LOCK 0;
-      Csv.save_out chan [row];
+      Csv.output_all (Csv.to_channel chan) [row];
       close_out chan;
 
       (* Return result or re-raise the exception. *)
@@ -1117,7 +1113,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	  let msg = new_message 'p' in (* PasswordMessage *)
 	  add_string msg password;
 	  loop (Some msg)
-      | AuthenticationCryptPassword _(*salt*) ->
+      | AuthenticationCryptPassword _salt ->
 	  (* Crypt password not supported because there is no crypt(3) function
 	   * in OCaml.
 	   *)
@@ -1134,7 +1130,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	  fail (Error "PGOCaml: SCM Credential authentication not supported")
       | ErrorResponse err ->
 	  pg_error err
-      | NoticeResponse _(*err*) ->
+      | NoticeResponse _err ->
 	  (* XXX Do or print something here? *)
 	  loop None
       | _ ->
@@ -1280,7 +1276,7 @@ let iter_execute conn name portal params proc () =
       match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
-      | NoticeResponse _(*err*) ->
+      | NoticeResponse _err ->
 	  (* XXX Do or print something here? *)
 	  loop ()
       | BindComplete -> loop ()
@@ -1291,7 +1287,7 @@ let iter_execute conn name portal params proc () =
 	    function
 	    | (i, _) when i < 0 -> None (* NULL *)
 	    | (0, _) -> Some ""
-	    | (_(*i*), bytes) -> Some bytes
+	    | (_, bytes) -> Some bytes
 	  ) fields in
 	  proc fields >>= loop
       | NoData -> loop ()
