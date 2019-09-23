@@ -1,3 +1,10 @@
+Release 4.0
+===========
+
+* Migrate build system to Dune
+* Remove Camlp4 syntax extension
+* Split PPX into separate OPAM package 'pgocaml_ppx'
+
 Release 3.0
 ===========
 
