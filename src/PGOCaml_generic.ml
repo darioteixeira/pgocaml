@@ -1030,7 +1030,6 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
     match host with
     | `Hostname hostname ->
        let addrs = Unix.getaddrinfo hostname (sprintf "%d" port) [Unix.AI_SOCKTYPE(Unix.SOCK_STREAM)] in
-       printf "The hostname is %s\n" hostname;
        if addrs = [] then 
 	 raise (Error ("PGOCaml: unknown host: " ^ hostname))
        else
