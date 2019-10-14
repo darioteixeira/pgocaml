@@ -1630,8 +1630,8 @@ let string_of_oid = Int32.to_string
 let string_of_bool = function
   | true -> "t"
   | false -> "f"
-let string_of_int = Stdlib.string_of_int
-let string_of_int16 = Stdlib.string_of_int
+let string_of_int = Pervasives.string_of_int
+let string_of_int16 = Pervasives.string_of_int
 let string_of_int32 = Int32.to_string
 let string_of_int64 = Int64.to_string
 let string_of_float = string_of_float
@@ -1717,8 +1717,8 @@ let bool_of_string = function
   | "false" | "f" -> false
   | str ->
       raise (Error ("PGOCaml: not a boolean: " ^ str))
-let int_of_string = Stdlib.int_of_string
-let int16_of_string = Stdlib.int_of_string
+let int_of_string = Pervasives.int_of_string
+let int16_of_string = Pervasives.int_of_string
 let int32_of_string = Int32.of_string
 let int64_of_string = Int64.of_string
 let float_of_string = float_of_string

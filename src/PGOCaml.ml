@@ -26,8 +26,8 @@ module Simple_thread = struct
   let fail = raise
   let catch f fexn = try f () with e -> fexn e
 
-  type in_channel = Stdlib.in_channel
-  type out_channel = Stdlib.out_channel
+  type in_channel = Pervasives.in_channel
+  type out_channel = Pervasives.out_channel
   let open_connection = Unix.open_connection
   let output_char = output_char
   let output_binary_int = output_binary_int
