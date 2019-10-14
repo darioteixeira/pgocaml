@@ -1030,6 +1030,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
     match host with
     | `Hostname hostname ->
        let addrs = Unix.getaddrinfo hostname (sprintf "%d" port) [Unix.AI_SOCKTYPE(Unix.SOCK_STREAM)] in
+       printf "The hostname is %s\n" hostname;
        if addrs = [] then 
 	 raise (Error ("PGOCaml: unknown host: " ^ hostname))
        else
@@ -1065,10 +1066,10 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	[] -> 
 	  raise (Error ("PGOCaml: Could not connect to database"))
       | sockaddr :: sockaddrs ->
-	 try
-	   open_connection sockaddr 
-	 with
-	   Unix.Unix_error _ -> create_sock_channels sockaddrs in
+	 catch
+	    (fun () ->
+	      open_connection sockaddr)
+	    (function Unix.Unix_error _ -> create_sock_channels sockaddrs) in
     create_sock_channels sockaddrs in
     
   let do_connect () =
@@ -1630,8 +1631,8 @@ let string_of_oid = Int32.to_string
 let string_of_bool = function
   | true -> "t"
   | false -> "f"
-let string_of_int = Pervasives.string_of_int
-let string_of_int16 = Pervasives.string_of_int
+let string_of_int = Stdlib.string_of_int
+let string_of_int16 = Stdlib.string_of_int
 let string_of_int32 = Int32.to_string
 let string_of_int64 = Int64.to_string
 let string_of_float = string_of_float
@@ -1717,8 +1718,8 @@ let bool_of_string = function
   | "false" | "f" -> false
   | str ->
       raise (Error ("PGOCaml: not a boolean: " ^ str))
-let int_of_string = Pervasives.int_of_string
-let int16_of_string = Pervasives.int_of_string
+let int_of_string = Stdlib.int_of_string
+let int16_of_string = Stdlib.int_of_string
 let int32_of_string = Int32.of_string
 let int64_of_string = Int64.of_string
 let float_of_string = float_of_string
