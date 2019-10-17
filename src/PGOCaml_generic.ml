@@ -1678,10 +1678,6 @@ let string_of_any_array xs =
   Buffer.add_char buf '}';
   Buffer.contents buf
 
-let option_map f = function
-  | Some x -> Some (f x)
-  | None -> None
-
 let escape_string str =
   let buf = Buffer.create 128 in
   for i = 0 to String.length str - 1 do
@@ -1691,12 +1687,14 @@ let escape_string str =
   done;
   Buffer.contents buf
 
-let string_of_bool_array a = string_of_any_array (List.map (option_map string_of_bool) a)
-let string_of_int32_array a = string_of_any_array (List.map (option_map Int32.to_string) a)
-let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to_string) a)
-let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
-let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
-let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
+let string_of_f_array f a = string_of_any_array (List.map (Option.map f) a)
+
+let string_of_bool_array a = string_of_f_array string_of_bool a
+let string_of_int32_array a = string_of_f_array Int32.to_string a
+let string_of_int64_array a = string_of_f_array Int64.to_string a
+let string_of_string_array a = string_of_f_array escape_string a
+let string_of_float_array a = string_of_f_array string_of_float a
+let string_of_timestamp_array a = string_of_f_array string_of_timestamp a
 
 let comment_src_loc () =
   match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
@@ -1711,8 +1709,7 @@ let comment_src_loc () =
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
 
-let string_of_bytea_array a =
-  string_of_any_array (List.map (option_map string_of_bytea) a)
+let string_of_bytea_array a = string_of_f_array string_of_bytea a
 
 let string_of_string (x : string) = x
 let oid_of_string = Int32.of_string
@@ -1908,12 +1905,14 @@ let any_array_of_string str =
   let accum = if Buffer.length buf = 0 then accum else add_field accum in
   List.rev accum
 
-let bool_array_of_string str = List.map (option_map bool_of_string) (any_array_of_string str)
-let int32_array_of_string str = List.map (option_map Int32.of_string) (any_array_of_string str)
-let int64_array_of_string str = List.map (option_map Int64.of_string) (any_array_of_string str)
+let f_array_of_string f str = List.map (Option.map f) (any_array_of_string str)
+
+let bool_array_of_string str = f_array_of_string bool_of_string str
+let int32_array_of_string str = f_array_of_string Int32.of_string str
+let int64_array_of_string str = f_array_of_string Int64.of_string str
 let string_array_of_string str = any_array_of_string str
-let float_array_of_string str = List.map (option_map float_of_string) (any_array_of_string str)
-let timestamp_array_of_string str = List.map (option_map timestamp_of_string) (any_array_of_string str)
+let float_array_of_string str = f_array_of_string float_of_string str
+let timestamp_array_of_string str = f_array_of_string timestamp_of_string str
 
 let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'
