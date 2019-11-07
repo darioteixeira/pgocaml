@@ -18,7 +18,7 @@ PG'OCAML is different than the above bindings:
 OCaml library which talks the frontend/backend protocol directly with the
 database.
 
-* It has a camlp4 layer which lets you write SQL statements directly in your
+* It has a PPX (macro) layer which lets you write SQL statements directly in your
 code, TYPE SAFE at compile time, with TYPE INFERENCE into the SQL, and using
 the full PostgreSQL SQL grammar (sub-selects, PG-specific SQL, etc.).  But
 the flip side of this is that you need to have access to the database at
@@ -51,9 +51,7 @@ to connect to your database both at compile-time and at runtime.
 
 # Using the PPX
 
-In addition to the camlp4 syntax extension, there is also a PPX
-available for more recent versions of OCaml. The PPX aims to be more or less a
-carbon copy of the camlp4 extension.
+The PPX aims to be more or less a carbon copy of the former extension.
 
 ```ocaml
 let () =
@@ -83,8 +81,7 @@ let () =
 ```
 
 The PPX allows you to specify that queries returning results should be returned as
-objects, rather than tuples. This is not currently supported in the Camlp4 version
-(which is being deprecated).
+objects, rather than tuples.
 
 ```ocaml
 let%lwt res =
