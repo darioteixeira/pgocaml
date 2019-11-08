@@ -388,14 +388,23 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
       *)
       let i = ref 0 in (* Counts parameters. *)
       let j = ref 0 in (* Counts placeholders. *)
+      let deja = Hashtbl.create 4 in
       let query = String.concat "" (
           List.map (
             function
             | `Text text -> text
-            | `Var (_varname, false, _) ->    (* non-list item *)
-              let () = incr i in        (* next parameter *)
-              let () = incr j in        (* next placeholder number *)
-              "$" ^ string_of_int j.contents
+            | `Var (_varname, false, _) as var ->    (* non-list item *)
+              let j =
+                if Hashtbl.mem deja var
+                then j.contents
+                else begin
+                  let () = incr i in  (* next parameter *)
+                  let () = incr j in  (* next placeholder number *)
+                  let _ = Hashtbl.add deja var j.contents in
+                  j.contents
+                end
+              in
+              "$" ^ string_of_int j
             | `Var (_varname, true, _) -> (* list item *)
               let param = List.nth params i.contents in
               let () = incr i in        (* next parameter *)
@@ -412,6 +421,16 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
 
       (* Flatten the parameters to a simple list now. *)
       let params = List.flatten params in
+      let params =
+        List.fold_left
+          (fun acc param ->
+            if List.mem param acc
+            then acc
+            else param :: acc)
+          []
+          params
+        |> List.rev
+      in
 
       (* Get a unique name for this query using an MD5 digest. *)
       let name = "ppx_pgsql." ^ Digest.to_hex (Digest.string query) in
