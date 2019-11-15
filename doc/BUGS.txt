@@ -114,11 +114,9 @@ as in this pseudocode example:
      "select title, author from books " ^ order_clause
 
 Such statement-building is not currently permitted by PG'OCaml, unless
-you ditch the camlp4 extension and use the low-level, unsafe
-interface. It would be nice to have some sort of "fragment
-constructor" operator to allow the above to be expressed in a
-type-safe way. However because it is not possible to compile the
-fragments, it doesn't look like such a constructor could be
-written. If anyone has any ideas about this, please contact the
-author.
-
+you ditch the PPX and use the low-level, unsafe interface. It would be
+nice to have some sort of "fragment constructor" operator to allow the
+above to be expressed in a type-safe way. However because it is not
+possible to compile the fragments, it doesn't look like such a
+constructor could be written. If anyone has any ideas about this, please
+contact the author.
