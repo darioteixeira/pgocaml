@@ -154,10 +154,12 @@ let parse_flags flags loc =
   let database = ref None in
   let unix_domain_socket_dir = ref None in
   let comment_src_loc = ref (PGOCaml.comment_src_loc ()) in
+  let show = ref None in
   List.iter (
     function
     | "execute" -> f_execute := true
     | "nullable-results" -> f_nullable_results := true
+    | "show" -> show := Some "show"
     | str when String.starts_with str "host=" ->
         let host' = String.sub str 5 (String.length str - 5) in
         host := Some host'
@@ -183,6 +185,9 @@ let parse_flags flags loc =
         | "no" | "0" | "off" -> comment_src_loc := false
         | _ -> loc_raise loc (Failure "Unrecognized value for option 'comment_src_loc'")
         end
+    | str when String.starts_with str "show=" ->
+        let shownam = String.sub str 5 (String.length str - 5) in
+        show := Some shownam
     | str ->
       loc_raise loc (
         Failure ("Unknown flag: " ^ str)
@@ -197,7 +202,7 @@ let parse_flags flags loc =
   let port = !port in
   let unix_domain_socket_dir = !unix_domain_socket_dir in
   let key = PGOCaml.describe_connection ?host ?user ?password ?database ?port ?unix_domain_socket_dir () in
-  key, f_execute, f_nullable_results, !comment_src_loc
+  key, f_execute, f_nullable_results, !comment_src_loc, !show
 
 let mk_conversions ~loc ~dbh results =
   List.mapi (
@@ -205,24 +210,30 @@ let mk_conversions ~loc ~dbh results =
       let field_type = result.PGOCaml.field_type in
       let fn = unravel_type dbh field_type in
       let fn = fn ^ "_of_string" in
-      let col = Exp.ident { txt = Lident ("c" ^ string_of_int i); loc } in
+      let col =
+        let cname = "c" ^ string_of_int i in
+        Exp.ident { txt = Lident cname; loc }
+      in
+      let sconv = [%expr match [%e col] with Some x -> x | None -> "-"][@metaloc loc] in
       if nullable then
-        ([%expr
-          PGOCaml_aux.Option.map
-            PGOCaml.(
-              [%e
-                Exp.ident { txt = Lident fn; loc }
-              ]
-            )
-            [%e col]
-        ]
-        [@metaloc loc])
+          ([%expr
+            PGOCaml_aux.Option.map
+              PGOCaml.(
+                [%e
+                  Exp.ident { txt = Lident fn; loc }
+                ]
+              )
+              [%e col]
+          ]
+          [@metaloc loc])
+        , sconv
       else
-        ([%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
-          (try PGOCaml_aux.Option.get [%e col] with
-            | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
-          )
-        ][@metaloc loc])
+          ([%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
+            (try PGOCaml_aux.Option.get [%e col] with
+              | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
+            )
+          ][@metaloc loc])
+        , sconv
     )
     results
 
@@ -249,7 +260,7 @@ let mk_listpat ~loc results =
 
 let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let open Rresult in
-  let (key, f_execute, f_nullable_results, comment_src_loc) = parse_flags flags loc in
+  let (key, f_execute, f_nullable_results, comment_src_loc, show) = parse_flags flags loc in
   let query =
     if comment_src_loc
     then
@@ -509,20 +520,64 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
         results
     in
     let convert =
-      List.map2
-        (fun (name, _, _) conv ->
-          { pcf_desc = Pcf_method(
-                {txt = name; loc}
-              , Public
-              , Cfk_concrete(Fresh, conv)
-            )
-          ; pcf_loc = loc
-          ; pcf_attributes = []
-          }
+      List.fold_left2
+        (fun (lsacc, showacc) (name, _, _) (conv, sconv) ->
+          let hd =
+            { pcf_desc = Pcf_method(
+                  {txt = name; loc}
+                , Public
+                , Cfk_concrete(Fresh, conv)
+              )
+            ; pcf_loc = loc
+            ; pcf_attributes = []
+            }
+          in
+          let ename = const_string ~loc name in
+          let showacc =
+            [%expr
+              let fields = ([%e ename], [%e sconv]) :: fields in
+              [%e showacc]
+            ][@metaloc loc]
+          in
+          (hd :: lsacc, showacc)
+        )
+        ( []
+        , [%expr
+            List.fold_left
+              (fun buffer (name, value) ->
+                let () = Buffer.add_string buffer name in
+                let () = Buffer.add_char buffer ':' in
+                let () = Buffer.add_char buffer ' ' in
+                let () = Buffer.add_string buffer value in
+                let () = Buffer.add_char buffer '\n' in
+                buffer
+              )
+              (Buffer.create 16)
+              fields
+            |> Buffer.contents
+          ][@metaloc loc]
         )
         fields
         (mk_conversions ~loc ~dbh:my_dbh results)
-      |> fun fields ->
+      |> fun (fields, fshow) ->
+          let fshow =
+            [%expr let fields = [] in [%e fshow]][@metaloc loc]
+          in
+          let fields =
+            match show with
+            | Some txt ->
+              { pcf_desc = Pcf_method(
+                    {txt; loc}
+                  , Public
+                  , Cfk_concrete(Fresh, fshow)
+                )
+              ; pcf_loc = loc
+              ; pcf_attributes = []
+              }
+              :: fields
+            | None ->
+              fields
+          in
           Exp.mk (
             Pexp_object({
               pcstr_self = Pat.any ~loc ()
@@ -533,11 +588,14 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     let expr = mkexpr ~convert ~list in
     Ok expr
   | true, None ->
-    Error("It doesn't make sense to make a module to encapsulate results that aren't coming", loc)
+    Error("It doesn't make sense to make an object to encapsulate results that aren't coming", loc)
   | false, Some results ->
     let list = mk_listpat ~loc results in
     let convert =
-      let conversions = mk_conversions ~loc ~dbh:my_dbh results in
+      let conversions =
+        mk_conversions ~loc ~dbh:my_dbh results
+        |> List.map fst
+      in
       (* Avoid generating a single-element tuple. *)
       match conversions with
       | [] -> [%expr ()][@metaloc loc]
