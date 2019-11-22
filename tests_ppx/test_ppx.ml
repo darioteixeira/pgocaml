@@ -8,7 +8,7 @@ email text
 )"]
 
 let employee_exists dbh ?email n =
-  [%pgsql dbh "SELECT EXISTS (SELECT 1 FROM employees WHERE name = $n AND email = $?email AND email = $email)"]
+  [%pgsql dbh "SELECT EXISTS (SELECT 1 FROM employees WHERE name = $n AND email = $?email)"]
 
 let () =
   let dbh = PGOCaml.connect () in
