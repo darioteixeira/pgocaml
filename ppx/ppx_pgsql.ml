@@ -567,11 +567,11 @@ let list_of_string_args mapper args =
   let maybe_strs =
     List.map
       (function
-        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None)); _})
+        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, _)); _})
           -> Some str
         | (_, other) ->
           match mapper other with
-          | {pexp_desc = Pexp_constant (Pconst_string (str, None)); _}
+          | {pexp_desc = Pexp_constant (Pconst_string (str, _)); _}
             -> Some str
           | _ -> None
       )
