@@ -8,7 +8,7 @@ email text
 )"]
 
 let employee_exists dbh ?email n =
-  [%pgsql dbh "SELECT EXISTS (SELECT 1 FROM employees WHERE name = $n AND email = $?email AND email = $email)"]
+  [%pgsql dbh "SELECT EXISTS (SELECT 1 FROM employees WHERE name = $n AND email = $?email)"]
 
 let () =
   let dbh = PGOCaml.connect () in
@@ -30,12 +30,11 @@ let () =
     end rows;
 
   let ids = [ 1_l; 3_l ] in
-  let rows = [%pgsql dbh "select id, name, salary, email from employees where id in $@ids"] in
+  let rows = [%pgsql.object dbh "show=pp" "select * from employees where id in $@ids"] in
   List.iter
     begin
-      fun (id, name, salary, email) ->
-        let email = match email with Some email -> email | None -> "-" in
-        Printf.printf "%ld %S %ld %S\n" id name salary email
+      fun obj ->
+        print_endline obj#pp
     end rows;
 
   PGOCaml.close dbh

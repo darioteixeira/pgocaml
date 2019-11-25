@@ -101,6 +101,25 @@ let%lwt incr_sal e =
   [%pgsql dbh "UPDATE employees SET salary = ${e#salary +. 1.0}"]
 ```
 
+You may wish to print all the fields of an object for debugging purposes.
+
+```ocaml
+let%lwt rows = [%pgsql.object dbh "show" "SELECT * FROM employees"] in
+List.iter
+  (fun row -> print_endline row#show)
+  rows
+```
+
+The above code will not work if one of the selected fields is named `show`. The
+PPX allows one to explicitly name the pretty-printer method as follows:
+
+```ocaml
+let%lwt rows = [%pgsql.object dbh "show=pp" "SELECT * FROM employees"] in
+List.iter
+  (fun row -> print_endline row#pp)
+  rows
+```
+
 ----------------------------------------------------------------------
 
 PG'OCaml (C) Copyright 2005-2009 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)

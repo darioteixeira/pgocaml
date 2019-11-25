@@ -1,7 +1,7 @@
 (executable
   (name test_ppx)
-  (libraries oUnit result pgocaml.ppx)
-  (preprocess (pps pgocaml.ppx)))
+  (libraries oUnit result pgocaml_ppx)
+  (preprocess (pps pgocaml_ppx)))
 
 (alias
   (name runtest)
