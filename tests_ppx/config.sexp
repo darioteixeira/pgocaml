@@ -1,17 +1,31 @@
-( ( ( Or
-      ( (Rule (typnam userid)) ; userid is a fully abstract type
-        (Rule (colnam userid))
+( ( (And
+      ( (Or
+          ( (Rule (typnam userid))
+            (Rule (typnam int4))
+            (Rule (typnam int32))
+          )
+        )
+        (Or
+          ( (Rule (argnam userid))
+            (Rule (colnam userid))
+          )
+        )
       )
     )
     ( (serialize Userid.to_string)
       (deserialize Userid.from_string)
     )
   )
-  ( ( Or
-      ( (Rule (typnam cash_money)) ; for strings beginning with a $ and possibly needing to be trimmed
-        (And ; there exists a column elsewhere also named salary, but it has a different type
-          ( (Rule (typnam float))
+  ( (And
+      ( (Or
+          ( (Rule (typnam cash_money))
+            (Rule (typnam float))
+          )
+        )
+        (Or
+          ( (Rule (argnam salary))
             (Rule (colnam salary))
+            (Rule (argnam customsalary))
           )
         )
       )

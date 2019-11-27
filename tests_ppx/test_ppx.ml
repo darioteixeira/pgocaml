@@ -15,7 +15,6 @@ let init_dbh dbh =
     email text
     )"]
   in
-  (* assume we've already done "CREATE DOMAIN eyylmao AS int" *)
   let () = [%pgsql
     dbh "execute"
     " DO $$ BEGIN
@@ -23,16 +22,6 @@ let init_dbh dbh =
       EXCEPTION
         WHEN duplicate_object THEN null;
       END $$"]
-  (* in
-  let () = [%pgsql
-    dbh
-    "execute"
-    " DO $$ BEGIN
-        CREATE TYPE tuserid AS (userid);
-      EXCEPTION
-        WHEN duplicate_object THEN null;
-    END $$"
-  ] *)
   in
   [%pgsql dbh "execute" "CREATE TEMPORARY TABLE customtable (
     userid userid NOT NULL,
@@ -59,13 +48,17 @@ let () =
 
   init_dbh dbh;
 
-  let insert name salary email = [%pgsql dbh "insert into employees (name, salary, email) values ($name, $salary, $?email)"] in
+  let insert name pay email = [%pgsql dbh "insert into employees (name, salary, email) values ($name, $pay, $?email)"] in
   insert "Ann" 10_000_l None;
   insert "Bob" 45_000_l None;
   insert "Jim" 20_000_l None;
   insert "Mary" 30_000_l (Some "mary@example.com");
 
-  let rows = [%pgsql dbh "select userid, name, salary, email from employees"] in
+  let rows = [%pgsql
+    dbh
+    "load_custom_from=tests_ppx/config.sexp"
+    "select userid, name, salary, email from employees"]
+  in
   List.iter
     begin
       fun (id, name, salary, email) ->
@@ -80,14 +73,15 @@ let () =
       fun obj ->
         print_endline obj#pp
     end rows;
-  let customid = Userid.from_string "69" in
-  let customcash = "$420.00" in
-  let () = [%pgsql dbh "INSERT INTO customtable (userid, salary) VALUES ($customid, $customcash)"] in
+  let userid = Userid.from_string "69" in
+  let salary = "$420.00" in
+  let () = [%pgsql dbh "load_custom_from=tests_ppx/config.sexp" "INSERT INTO customtable (userid, salary) VALUES ($userid, $salary)"] in
   let rows' =
     [%pgsql.object
       dbh
+      "load_custom_from=tests_ppx/config.sexp"
       "show"
-      "SELECT * FROM customtable"]
+      "SELECT * FROM customtable WHERE salary = $salary"]
   in
   List.iter
     begin

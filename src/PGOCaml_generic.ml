@@ -330,14 +330,17 @@ val string_of_string_array : string_array -> string
 val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
+val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
 
 val comment_src_loc : unit -> bool
 
 val find_custom_typconvs
-  : typnam:string
+  :  ?typnam:string
+  -> ?lookin:string
   -> ?colnam:string
+  -> ?argnam:string
   -> unit
-  -> ((string * string), string) Rresult.result
+  -> ((string * string) option, string) Rresult.result
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -1702,6 +1705,7 @@ let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to
 let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
+let string_of_arbitrary_array f a = string_of_any_array (List.map (option_map f) a)
 
 let comment_src_loc () =
   match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
@@ -1724,6 +1728,7 @@ type custom_rule_payload =
 type custom_rule_spec =
   | Typnam of string
   | Colnam of string
+  | Argnam of string
   [@@deriving sexp]
 
 type rule_logic =
@@ -1734,18 +1739,20 @@ type rule_logic =
   | False
   [@@deriving sexp]
 
-let rec eval_rule_spec ?typnam ?colnam logic =
+let rec eval_rule_spec ?typnam ?colnam ?argnam logic =
   match logic with
   | True -> true
   | False -> false
   | Rule (Typnam s) -> Option.(map ((=) s) typnam |> default false)
   | Rule (Colnam s) -> Option.(map ((=) s) colnam |> default false)
+  | Rule (Argnam s) ->
+    Option.(map ((=) s) argnam |> default false)
   | And logics ->
-    let logics = List.map (eval_rule_spec ?typnam ?colnam) logics in
-    List.fold_left (fun acc x -> acc && x) (List.hd logics) (List.tl logics)
+    let[@warning "-8"] (hd :: tl) = List.map (eval_rule_spec ?typnam ?colnam ?argnam) logics in
+    List.fold_left (fun acc x -> acc && x) hd tl
   | Or logics ->
-    let logics = List.map (eval_rule_spec ?typnam ?colnam) logics in
-    List.fold_left (fun acc x -> acc || x) (List.hd logics) (List.tl logics)
+    let[@warning "-8"] (hd :: tl) = List.map (eval_rule_spec ?typnam ?colnam ?argnam) logics in
+    List.fold_left (fun acc x -> acc || x) hd tl
 
 type custom_rule = rule_logic * custom_rule_payload [@@deriving sexp]
 
@@ -1753,34 +1760,49 @@ type custom_rules_conf = custom_rule list [@@deriving sexp]
 
 let find_custom_typconvs =
   let open Rresult in
-  let typeconvs_file = Sys.getenv_opt "PGCUSTOM_CONVERTERS_CONFIG" in
-  let custom_converters =
-    match typeconvs_file with
-    | None ->
-      Ok []
-    | Some f ->
-      begin try
-        Ok (Sexplib.Sexp.load_sexp_conv_exn f custom_rules_conf_of_sexp)
-      with
-      | exn ->
-        Error (
-          Printf.sprintf
-            "Error parsing custom typeconvs file: %s"
-            (Printexc.to_string exn))
-      end
+  let loadconvs fname =
+    try
+      Ok (Sexplib.Sexp.load_sexp_conv_exn fname custom_rules_conf_of_sexp)
+    with
+    | exn ->
+      Error (
+        Printf.sprintf
+          "Error parsing custom typeconvs file: %s"
+          (Printexc.to_string exn))
   in
-  fun ~typnam ?colnam () ->
-    custom_converters
+  let default_custom_converters =
+    match Sys.getenv_opt "PGCUSTOM_CONVERTERS_CONFIG" with
+      | None -> Ok []
+      | Some f -> loadconvs f
+  in
+  fun ?typnam ?lookin ?colnam ?argnam () ->
+    begin match lookin with
+      | Some x ->
+        (*let _ = failwith ("Kill me now " ^ x) in*)
+        let convs = loadconvs x in
+        begin match convs with
+        | Ok x -> Ok x
+        | Error e -> Error e
+        end
+        (*>>= fun blep ->
+        Error (Printf.sprintf "Got %d converters" (List.length @@ blep))*)
+      | None -> default_custom_converters
+    end
     >>= fun custom_converters ->
-    let res =
-      List.filter
-        (fun (logic, _) -> eval_rule_spec ~typnam ?colnam logic)
-        custom_converters
-    in
+    begin try
+      Ok(
+        List.filter
+          (fun (logic, _) -> eval_rule_spec ?typnam ?colnam ?argnam logic)
+          custom_converters)
+    with
+      | Failure e ->
+        failwith e
+    end
+    >>= fun res ->
     match res with
-    | [] -> Error "No custom converter found"
     | _ :: _ :: _ -> Error "Converter collision"
-    | [_rulespec, v] -> Ok (v.serialize, v.deserialize)
+    | [] -> Ok None
+    | [_rulespec, v] -> Ok (Some (v.serialize, v.deserialize))
 
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex

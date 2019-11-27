@@ -157,6 +157,21 @@ file follows:
 )
 ```
 
+In case you're working on a large project, and don't want to write many
+convoluted rules to play nicely with your existing database structure, you can
+selectively enable custom serialization for individual queries:
+
+```ocaml
+let rows =
+  [%pgsql.object
+    dbh
+    "load_custom_from=tests_ppx/config.sexp"
+    "show"
+    "SELECT * FROM customtable"]
+in
+...
+```
+
 ----------------------------------------------------------------------
 
 PG'OCaml (C) Copyright 2005-2009 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)

@@ -331,14 +331,17 @@ val string_of_string_array : string_array -> string
 val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
+val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
 
 val comment_src_loc : unit -> bool
 
 val find_custom_typconvs
-  :  typnam:string
+  :  ?typnam:string
+  -> ?lookin:string
   -> ?colnam:string
+  -> ?argnam:string
   -> unit
-  -> ((string * string), string) Rresult.result
+  -> ((string * string) option, string) Rresult.result
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
