@@ -7,7 +7,9 @@
 (library
   (name PGOCaml)
   (public_name pgocaml)
-  (libraries calendar csv hex re unix)
+  (libraries calendar csv hex re rresult sexplib unix)
+  (preprocess
+    (pps ppx_sexp_conv ppx_deriving.show))
   (wrapped false)
   (modules PGOCaml_aux PGOCaml PGOCaml_generic PGOCaml_config))
 

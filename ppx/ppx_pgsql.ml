@@ -42,6 +42,11 @@ type key = PGOCaml.connection_desc
 
 let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 
+let exp_of_string x =
+  (Migrate_parsetree.Parse.expression
+    Migrate_parsetree.Versions.ocaml_407
+    (Lexing.from_string x))
+
 (** [get_connection key] Find the database connection specified by [key],
   *  otherwise attempt to create a new one from [key] and return that (or an
   *  error).
@@ -60,7 +65,7 @@ let get_connection ~loc key =
         PGOCaml.prepare dbh ~query:nullable_query ~name:nullable_name ();
 
         (* Prepare the unravel test. *)
-        let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
+        let unravel_query = "select typname, typtype, typbasetype from pg_type where oid = $1" in
         PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
         (* Prepare the type name query. *)
@@ -90,22 +95,32 @@ let name_of_type_wrapper dbh oid =
       | [ [ Some "hstore" ] ] -> "hstore"
       | _ -> raise exc
 
-
 (* By using CREATE DOMAIN, the user may define types which are essentially aliases
  * for existing types.  If the original type is not recognised by PG'OCaml, this
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh orig_type =
+let unravel_type dbh ?colnam orig_type =
+  let get_custom typnam =
+    match PGOCaml.find_custom_typconvs ~typnam ?colnam () with
+    | Ok convs ->
+      typnam, Some convs
+    | Error exc -> failwith exc
+  in
   let rec unravel_type_aux ft =
     try
-      name_of_type_wrapper dbh ft
+      let rv = name_of_type_wrapper dbh ft, None in
+      match PGOCaml.find_custom_typconvs ~typnam:(fst rv) ?colnam () with
+      | Ok (x) -> (fst rv), Some x
+      | _ -> rv
     with PGOCaml.Error _ as exc ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
       match rows with
-        | [ [ Some typtype ; _ ] ] when typtype = "e" -> "string"
-        | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
+        | [ Some typnam :: _ ] when Rresult.R.is_ok (PGOCaml.find_custom_typconvs ~typnam ?colnam ()) ->
+          get_custom typnam
+        | [ [ Some _; Some typtype ; _ ] ] when typtype = "e" -> "string", None
+        | [ [ Some _; Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
           raise exc
@@ -208,8 +223,19 @@ let mk_conversions ~loc ~dbh results =
   List.mapi (
     fun i (result, nullable) ->
       let field_type = result.PGOCaml.field_type in
-      let fn = unravel_type dbh field_type in
-      let fn = fn ^ "_of_string" in
+      let fn =
+        match unravel_type dbh ~colnam:result.PGOCaml.name field_type with
+        | nam, None ->
+          let fn = nam ^ "_of_string" in
+          [%expr PGOCaml.(
+              [%e
+                exp_of_string fn
+              ]
+            )
+          ][@metaloc loc]
+        | _nam, Some (_, deserialize) ->
+          exp_of_string deserialize
+      in
       let col =
         let cname = "c" ^ string_of_int i in
         Exp.ident { txt = Lident cname; loc }
@@ -218,17 +244,13 @@ let mk_conversions ~loc ~dbh results =
       if nullable then
           ([%expr
             PGOCaml_aux.Option.map
-              PGOCaml.(
-                [%e
-                  Exp.ident { txt = Lident fn; loc }
-                ]
-              )
+              [%e fn]
               [%e col]
           ]
           [@metaloc loc])
         , sconv
       else
-          ([%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
+          ([%expr [%e fn]
             (try PGOCaml_aux.Option.get [%e col] with
               | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
             )
@@ -240,8 +262,8 @@ let mk_conversions ~loc ~dbh results =
 let coretype_of_type ~loc ~dbh oid =
   let typ =
     match unravel_type dbh oid with
-    | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
-    | nam -> Lident nam
+    | "timestamp", _ -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
+    | nam, _ -> Lident nam
   in
   { ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
   ; ptyp_loc = loc
@@ -351,20 +373,21 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
            then String.sub varname 1 (String.length varname - 2)
            else varname
          in
-         let varname =
-           (Migrate_parsetree.Parse.expression
-             Migrate_parsetree.Versions.ocaml_407
-             (Lexing.from_string varname))
-         in
+         let varname = exp_of_string varname in
          let varname = {varname with pexp_loc = loc} in
-         let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
-         let fn = Exp.ident ~loc { txt = Lident fn; loc } in
+         let fn =
+           match unravel_type my_dbh param_type with
+           | nam, None ->
+             let fn = exp_of_string ("string_of_" ^ nam) in
+             [%expr PGOCaml.([%e fn])][@metaloc loc]
+           | _, Some (serialize, _) -> exp_of_string serialize
+         in
          let head =
            match list, option with
-           | false, false -> [%expr [Some (PGOCaml.([%e fn]) [%e varname])]][@metaloc loc]
-           | false, true -> [%expr [PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e varname]]][@metaloc loc]
-           | true, false -> [%expr List.map (fun x -> Some (PGOCaml.([%e fn]) x)) [%e varname]][@metaloc loc]
-           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map PGOCaml.([%e fn])) [%e varname]][@metaloc loc]
+           | false, false -> [%expr [Some ([%e fn] [%e varname])]][@metaloc loc]
+           | false, true -> [%expr [PGOCaml_aux.Option.map [%e fn] [%e varname]]][@metaloc loc]
+           | true, false -> [%expr List.map (fun x -> Some ([%e fn] x)) [%e varname]][@metaloc loc]
+           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map [%e fn]) [%e varname]][@metaloc loc]
          in
          ([%expr [%e head]::[%e tail]][@metaloc loc])
       )

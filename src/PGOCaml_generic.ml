@@ -193,7 +193,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 (** {6 Low level query interface - DO NOT USE DIRECTLY} *)
 
-type oid = int32
+type oid = int32 [@@deriving show]
 
 type param = string option (* None is NULL. *)
 type result = string option (* None is NULL. *)
@@ -253,8 +253,8 @@ type result_description = {
   field_type : oid;			(** The type of the field. *)
   length : int;				(** Length of the field. *)
   modifier : int32;			(** Type modifier. *)
-}
-type row_description = result_description list
+}[@@deriving show]
+type row_description = result_description list [@@deriving show]
 
 type param_description = {
   param_type : oid;			(** The type of the parameter. *)
@@ -332,6 +332,12 @@ val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 
 val comment_src_loc : unit -> bool
+
+val find_custom_typconvs
+  : typnam:string
+  -> ?colnam:string
+  -> unit
+  -> ((string * string), string) Rresult.result
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -1203,7 +1209,7 @@ let alive conn =
     (fun () -> ping conn >>= fun () -> return true)
     (fun _ -> return false)
 
-type oid = int32
+type oid = int32 [@@deriving show]
 
 type param = string option
 type result = string option
@@ -1451,8 +1457,8 @@ type result_description = {
   field_type : oid;
   length : int;
   modifier : int32;
-}
-type row_description = result_description list
+}[@@deriving show]
+type row_description = result_description list [@@deriving show]
 
 type param_description = {
   param_type : oid;
@@ -1706,6 +1712,75 @@ let comment_src_loc () =
       | _ -> failwith (Printf.sprintf "Unrecognized option for 'PGCOMMENT_SRC_LOC': %s" x)
     end
   | None -> PGOCaml_config.default_comment_src_loc
+
+open Sexplib.Std
+
+type custom_rule_payload =
+  { serialize: string
+  ; deserialize: string
+  }
+  [@@deriving sexp]
+
+type custom_rule_spec =
+  | Typnam of string
+  | Colnam of string
+  [@@deriving sexp]
+
+type rule_logic =
+  | And of rule_logic list
+  | Or of rule_logic list
+  | Rule of custom_rule_spec
+  | True
+  | False
+  [@@deriving sexp]
+
+let rec eval_rule_spec ?typnam ?colnam logic =
+  match logic with
+  | True -> true
+  | False -> false
+  | Rule (Typnam s) -> Option.(map ((=) s) typnam |> default false)
+  | Rule (Colnam s) -> Option.(map ((=) s) colnam |> default false)
+  | And logics ->
+    let logics = List.map (eval_rule_spec ?typnam ?colnam) logics in
+    List.fold_left (fun acc x -> acc && x) (List.hd logics) (List.tl logics)
+  | Or logics ->
+    let logics = List.map (eval_rule_spec ?typnam ?colnam) logics in
+    List.fold_left (fun acc x -> acc || x) (List.hd logics) (List.tl logics)
+
+type custom_rule = rule_logic * custom_rule_payload [@@deriving sexp]
+
+type custom_rules_conf = custom_rule list [@@deriving sexp]
+
+let find_custom_typconvs =
+  let open Rresult in
+  let typeconvs_file = Sys.getenv_opt "PGCUSTOM_CONVERTERS_CONFIG" in
+  let custom_converters =
+    match typeconvs_file with
+    | None ->
+      Ok []
+    | Some f ->
+      begin try
+        Ok (Sexplib.Sexp.load_sexp_conv_exn f custom_rules_conf_of_sexp)
+      with
+      | exn ->
+        Error (
+          Printf.sprintf
+            "Error parsing custom typeconvs file: %s"
+            (Printexc.to_string exn))
+      end
+  in
+  fun ~typnam ?colnam () ->
+    custom_converters
+    >>= fun custom_converters ->
+    let res =
+      List.filter
+        (fun (logic, _) -> eval_rule_spec ~typnam ?colnam logic)
+        custom_converters
+    in
+    match res with
+    | [] -> Error "No custom converter found"
+    | _ :: _ :: _ -> Error "Converter collision"
+    | [_rulespec, v] -> Ok (v.serialize, v.deserialize)
 
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex
