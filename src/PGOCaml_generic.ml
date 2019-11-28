@@ -193,7 +193,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 (** {6 Low level query interface - DO NOT USE DIRECTLY} *)
 
-type oid = int32
+type oid = int32 [@@deriving show]
 
 type param = string option (* None is NULL. *)
 type result = string option (* None is NULL. *)
@@ -253,8 +253,8 @@ type result_description = {
   field_type : oid;			(** The type of the field. *)
   length : int;				(** Length of the field. *)
   modifier : int32;			(** Type modifier. *)
-}
-type row_description = result_description list
+}[@@deriving show]
+type row_description = result_description list [@@deriving show]
 
 type param_description = {
   param_type : oid;			(** The type of the parameter. *)
@@ -330,8 +330,17 @@ val string_of_string_array : string_array -> string
 val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
+val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
 
 val comment_src_loc : unit -> bool
+
+val find_custom_typconvs
+  :  ?typnam:string
+  -> ?lookin:string
+  -> ?colnam:string
+  -> ?argnam:string
+  -> unit
+  -> ((string * string) option, string) Rresult.result
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool
@@ -1203,7 +1212,7 @@ let alive conn =
     (fun () -> ping conn >>= fun () -> return true)
     (fun _ -> return false)
 
-type oid = int32
+type oid = int32 [@@deriving show]
 
 type param = string option
 type result = string option
@@ -1451,8 +1460,8 @@ type result_description = {
   field_type : oid;
   length : int;
   modifier : int32;
-}
-type row_description = result_description list
+}[@@deriving show]
+type row_description = result_description list [@@deriving show]
 
 type param_description = {
   param_type : oid;
@@ -1696,6 +1705,7 @@ let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to
 let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
+let string_of_arbitrary_array f a = string_of_any_array (List.map (option_map f) a)
 
 let comment_src_loc () =
   match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
@@ -1706,6 +1716,93 @@ let comment_src_loc () =
       | _ -> failwith (Printf.sprintf "Unrecognized option for 'PGCOMMENT_SRC_LOC': %s" x)
     end
   | None -> PGOCaml_config.default_comment_src_loc
+
+open Sexplib.Std
+
+type custom_rule_payload =
+  { serialize: string
+  ; deserialize: string
+  }
+  [@@deriving sexp]
+
+type custom_rule_spec =
+  | Typnam of string
+  | Colnam of string
+  | Argnam of string
+  [@@deriving sexp]
+
+type rule_logic =
+  | And of rule_logic list
+  | Or of rule_logic list
+  | Rule of custom_rule_spec
+  | True
+  | False
+  [@@deriving sexp]
+
+let rec eval_rule_spec ?typnam ?colnam ?argnam logic =
+  match logic with
+  | True -> true
+  | False -> false
+  | Rule (Typnam s) -> Option.(map ((=) s) typnam |> default false)
+  | Rule (Colnam s) -> Option.(map ((=) s) colnam |> default false)
+  | Rule (Argnam s) ->
+    Option.(map ((=) s) argnam |> default false)
+  | And logics ->
+    let[@warning "-8"] (hd :: tl) = List.map (eval_rule_spec ?typnam ?colnam ?argnam) logics in
+    List.fold_left (fun acc x -> acc && x) hd tl
+  | Or logics ->
+    let[@warning "-8"] (hd :: tl) = List.map (eval_rule_spec ?typnam ?colnam ?argnam) logics in
+    List.fold_left (fun acc x -> acc || x) hd tl
+
+type custom_rule = rule_logic * custom_rule_payload [@@deriving sexp]
+
+type custom_rules_conf = custom_rule list [@@deriving sexp]
+
+let find_custom_typconvs =
+  let open Rresult in
+  let loadconvs fname =
+    try
+      Ok (Sexplib.Sexp.load_sexp_conv_exn fname custom_rules_conf_of_sexp)
+    with
+    | exn ->
+      Error (
+        Printf.sprintf
+          "Error parsing custom typeconvs file: %s"
+          (Printexc.to_string exn))
+  in
+  let default_custom_converters =
+    match Sys.getenv_opt "PGCUSTOM_CONVERTERS_CONFIG" with
+      | None -> Ok []
+      | Some f -> loadconvs f
+  in
+  fun ?typnam ?lookin ?colnam ?argnam () ->
+    begin match lookin with
+      | Some x ->
+        (*let _ = failwith ("Kill me now " ^ x) in*)
+        let convs = loadconvs x in
+        begin match convs with
+        | Ok x -> Ok x
+        | Error e -> Error e
+        end
+        (*>>= fun blep ->
+        Error (Printf.sprintf "Got %d converters" (List.length @@ blep))*)
+      | None -> default_custom_converters
+    end
+    >>= fun custom_converters ->
+    begin try
+      Ok(
+        List.filter
+          (fun (logic, _) -> eval_rule_spec ?typnam ?colnam ?argnam logic)
+          custom_converters)
+    with
+      | Failure e ->
+        failwith e
+    end
+    >>= fun res ->
+    match res with
+    | _ :: _ :: _ -> Error "Converter collision"
+    | [] -> Ok None
+    | [_rulespec, v] -> Ok (Some (v.serialize, v.deserialize))
 
 let string_of_bytea b =
   let `Hex b_hex = Hex.of_string b in  "\\x" ^ b_hex

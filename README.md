@@ -48,6 +48,7 @@ to connect to your database both at compile-time and at runtime.
 | `PGPASSWORD`  | empty string  | |
 | `PGPROFILING` | no profiling  | Indicates the file to write profiling information to. If it doesn't exist, don't profile |
 | `COMMENT_SRC_LOC` | `no`      | If set to `yes`, `1`, or `on`, PG'OCaml will append a comment to each query indicating where it appears in the OCaml source code. This can be useful for logging. |
+| `PGCUSTOM_CONVERTERS_CONFIG` | nothing | Points to a file containing custom type conversions |
 
 # Using the PPX
 
@@ -118,6 +119,57 @@ let%lwt rows = [%pgsql.object dbh "show=pp" "SELECT * FROM employees"] in
 List.iter
   (fun row -> print_endline row#pp)
   rows
+```
+
+It's important to note that the `show` directive causes values to be printed in
+the same format used by the Postgres API, so things like `Calendar.t` values and
+custom converters (see below) may not work as expected.
+
+## Custom Type Conversions
+
+Custom serializers and deserializers may be provided in a configuration file
+specified by `PGCUSTOM_CONVERTERS_CONFIG` (see above). An example configuration
+file follows:
+
+```lisp
+( ( ( Or
+      ( (Rule (typnam userid)) ; userid is a fully abstract type
+        (Rule (colnam userid))
+      )
+    )
+    ( (serialize Userid.to_string)
+      (deserialize Userid.from_string)
+    )
+  )
+  ( ( Or
+      ( (Rule (typnam cash_money)) ; for strings beginning with a $ and possibly needing to be trimmed
+        (And ; there exists a column elsewhere also named salary, but it has a different type
+          ( (Rule (typnam float))
+            (Rule (colnam salary))
+          )
+        )
+      )
+    )
+    ( (serialize "fun x -> String.(sub x 1 (length x - 1)) |> String.trim")
+      (deserialize "fun x -> \"$\" ^ x")
+    )
+  )
+)
+```
+
+In case you're working on a large project, and don't want to write many
+convoluted rules to play nicely with your existing database structure, you can
+selectively enable custom serialization for individual queries:
+
+```ocaml
+let rows =
+  [%pgsql.object
+    dbh
+    "load_custom_from=tests_ppx/config.sexp"
+    "show"
+    "SELECT * FROM customtable"]
+in
+...
 ```
 
 ----------------------------------------------------------------------

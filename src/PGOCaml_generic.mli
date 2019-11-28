@@ -193,7 +193,7 @@ type pa_pg_data = (string, bool) Hashtbl.t
 
 (** {6 Low level query interface - DO NOT USE DIRECTLY} *)
 
-type oid = int32
+type oid = int32 [@@deriving show]
 
 type param = string option (* None is NULL. *)
 type result = string option (* None is NULL. *)
@@ -247,15 +247,15 @@ val alter : 'a t -> ?name:string -> string -> unit monad
     optionally names it [name]. Same as inject but ignoring the
     result. *)
 
-type row_description = result_description list
-and result_description = {
+type result_description = {
   name : string;			(** Field name. *)
   table : oid option;			(** OID of table. *)
   column : int option;			(** Column number of field in table. *)
   field_type : oid;			(** The type of the field. *)
   length : int;				(** Length of the field. *)
   modifier : int32;			(** Type modifier. *)
-}
+}[@@deriving show]
+type row_description = result_description list [@@deriving show]
 
 type params_description = param_description list
 and param_description = {
@@ -331,8 +331,17 @@ val string_of_string_array : string_array -> string
 val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
+val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
 
 val comment_src_loc : unit -> bool
+
+val find_custom_typconvs
+  :  ?typnam:string
+  -> ?lookin:string
+  -> ?colnam:string
+  -> ?argnam:string
+  -> unit
+  -> ((string * string) option, string) Rresult.result
 
 val oid_of_string : string -> oid
 val bool_of_string : string -> bool

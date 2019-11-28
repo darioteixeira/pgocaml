@@ -42,6 +42,17 @@ type key = PGOCaml.connection_desc
 
 let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 
+let exp_of_string ~loc x =
+  let lexer =
+    let acc = Lexing.from_string ~with_positions:false x in
+    acc.Lexing.lex_start_p <- loc.Warnings.loc_start;
+    acc.Lexing.lex_curr_p <- loc.Warnings.loc_end;
+    acc
+  in
+  (Migrate_parsetree.Parse.expression
+    Migrate_parsetree.Versions.ocaml_407
+    lexer)
+
 (** [get_connection key] Find the database connection specified by [key],
   *  otherwise attempt to create a new one from [key] and return that (or an
   *  error).
@@ -60,7 +71,7 @@ let get_connection ~loc key =
         PGOCaml.prepare dbh ~query:nullable_query ~name:nullable_name ();
 
         (* Prepare the unravel test. *)
-        let unravel_query = "select typtype, typbasetype from pg_type where oid = $1" in
+        let unravel_query = "select typname, typtype, typbasetype from pg_type where oid = $1" in
         PGOCaml.prepare dbh ~query:unravel_query ~name:unravel_name ();
 
         (* Prepare the type name query. *)
@@ -81,34 +92,50 @@ let get_connection ~loc key =
 *)
 let name_of_type_wrapper dbh oid =
   try
-    PGOCaml.name_of_type oid
-  with PGOCaml.Error _ as exc ->
+    Some (PGOCaml.name_of_type oid)
+  with PGOCaml.Error _ ->
     let params = [ Some (PGOCaml.string_of_oid oid) ] in
     let rows = PGOCaml.execute dbh ~name:typname_name ~params () in
     match rows with
-      | [ [ Some "citext" ] ] -> "string"
-      | [ [ Some "hstore" ] ] -> "hstore"
-      | _ -> raise exc
-
+      | [ [ Some "citext" ] ] -> Some "string"
+      | [ [ Some "hstore" ] ] -> Some "hstore"
+      | _ -> None
 
 (* By using CREATE DOMAIN, the user may define types which are essentially aliases
  * for existing types.  If the original type is not recognised by PG'OCaml, this
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh orig_type =
+let unravel_type dbh ?load_custom_from ?colnam ?argnam orig_type =
+  let get_custom typnam =
+    match PGOCaml.find_custom_typconvs ?typnam ?lookin:load_custom_from ?colnam ?argnam () with
+    | Ok convs ->
+      Option.default "FIXME" typnam, convs
+    | Error exc -> failwith exc
+  in
   let rec unravel_type_aux ft =
-    try
-      name_of_type_wrapper dbh ft
-    with PGOCaml.Error _ as exc ->
+    let rv =
+      let rv = name_of_type_wrapper dbh ft, None in
+      match PGOCaml.find_custom_typconvs ?typnam:(fst rv) ?lookin:load_custom_from ?colnam ?argnam () with
+      | Ok (x) ->
+        (fst rv), x
+      | Error err -> failwith err
+    in
+    match rv with
+    | None, _ ->
       let params = [ Some (PGOCaml.string_of_oid ft) ] in
       let rows = PGOCaml.execute dbh ~name:unravel_name ~params () in
-      match rows with
-        | [ [ Some typtype ; _ ] ] when typtype = "e" -> "string"
-        | [ [ Some typtype ; Some typbasetype ] ] when typtype = "d" ->
+      begin match rows with
+        | [ typnam :: _ ] when Rresult.R.is_ok (PGOCaml.find_custom_typconvs ?typnam ?lookin:load_custom_from ?colnam ?argnam ()) ->
+          get_custom typnam
+        | [ [ Some _; Some typtype ; _ ] ] when typtype = "e" -> "string", None
+        | [ [ Some _; Some typtype ; Some typbasetype ] ] when typtype = "d" ->
           unravel_type_aux (PGOCaml.oid_of_string typbasetype)
         | _ ->
-          raise exc
+          failwith "Impossible"
+      end
+    | typnam, coders ->
+      Option.default "FIXME" typnam, coders
   in unravel_type_aux orig_type
 
 (* Return the list of numbers a <= i < b. *)
@@ -144,7 +171,7 @@ let const_string ~loc str =
     pexp_loc = loc;
     pexp_attributes = []; }
 
-let parse_flags flags loc =
+let parse_flags _config flags loc =
   let f_execute = ref false in
   let f_nullable_results = ref false in
   let host = ref None in
@@ -155,6 +182,7 @@ let parse_flags flags loc =
   let unix_domain_socket_dir = ref None in
   let comment_src_loc = ref (PGOCaml.comment_src_loc ()) in
   let show = ref None in
+  let load_custom_from = ref None in
   List.iter (
     function
     | "execute" -> f_execute := true
@@ -188,6 +216,9 @@ let parse_flags flags loc =
     | str when String.starts_with str "show=" ->
         let shownam = String.sub str 5 (String.length str - 5) in
         show := Some shownam
+    | str when String.starts_with str "load_custom_from=" ->
+        let txt = String.sub str 17 (String.length str - 17) in
+        load_custom_from := Some ((Unix.getcwd ()) ^ "/" ^ txt)
     | str ->
       loc_raise loc (
         Failure ("Unknown flag: " ^ str)
@@ -202,14 +233,25 @@ let parse_flags flags loc =
   let port = !port in
   let unix_domain_socket_dir = !unix_domain_socket_dir in
   let key = PGOCaml.describe_connection ?host ?user ?password ?database ?port ?unix_domain_socket_dir () in
-  key, f_execute, f_nullable_results, !comment_src_loc, !show
+  key, f_execute, f_nullable_results, !comment_src_loc, !show, !load_custom_from
 
-let mk_conversions ~loc ~dbh results =
+let mk_conversions ?load_custom_from ~loc ~dbh results =
   List.mapi (
     fun i (result, nullable) ->
       let field_type = result.PGOCaml.field_type in
-      let fn = unravel_type dbh field_type in
-      let fn = fn ^ "_of_string" in
+      let fn =
+        match unravel_type dbh ?load_custom_from ~colnam:result.PGOCaml.name field_type with
+        | nam, None ->
+          let fn = nam ^ "_of_string" in
+          [%expr PGOCaml.(
+              [%e
+                exp_of_string ~loc fn
+              ]
+            )
+          ][@metaloc loc]
+        | _nam, Some (_, deserialize) ->
+          exp_of_string ~loc deserialize
+      in
       let col =
         let cname = "c" ^ string_of_int i in
         Exp.ident { txt = Lident cname; loc }
@@ -218,17 +260,13 @@ let mk_conversions ~loc ~dbh results =
       if nullable then
           ([%expr
             PGOCaml_aux.Option.map
-              PGOCaml.(
-                [%e
-                  Exp.ident { txt = Lident fn; loc }
-                ]
-              )
+              [%e fn]
               [%e col]
           ]
           [@metaloc loc])
         , sconv
       else
-          ([%expr PGOCaml.([%e Exp.ident { txt = Lident fn; loc }])
+          ([%expr [%e fn]
             (try PGOCaml_aux.Option.get [%e col] with
               | _ -> failwith "ppx_pgsql's nullability heuristic has failed - use \"nullable-results\""
             )
@@ -240,8 +278,8 @@ let mk_conversions ~loc ~dbh results =
 let coretype_of_type ~loc ~dbh oid =
   let typ =
     match unravel_type dbh oid with
-    | "timestamp" -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
-    | nam -> Lident nam
+    | "timestamp", _ -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
+    | nam, _ -> Lident nam
   in
   { ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
   ; ptyp_loc = loc
@@ -258,9 +296,9 @@ let mk_listpat ~loc results =
     (range 0 (List.length results))
     ([%pat? []][@metaloc loc])
 
-let pgsql_expand ~genobject ?(flags = []) loc dbh query =
+let pgsql_expand ~genobject ?(flags = []) ~config loc dbh query =
   let open Rresult in
-  let (key, f_execute, f_nullable_results, comment_src_loc, show) = parse_flags flags loc in
+  let (key, f_execute, f_nullable_results, comment_src_loc, show, load_custom_from) = parse_flags config flags loc in
   let query =
     if comment_src_loc
     then
@@ -346,25 +384,31 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     List.fold_right
       (fun (i, { PGOCaml.param_type = param_type }) tail ->
          let varname, list, option = List.assoc i varmap in
+         let argnam =
+           if String.starts_with varname "{"
+           then None
+           else Some varname
+         in
          let varname =
            if String.starts_with varname "{"
            then String.sub varname 1 (String.length varname - 2)
            else varname
          in
-         let varname =
-           (Migrate_parsetree.Parse.expression
-             Migrate_parsetree.Versions.ocaml_407
-             (Lexing.from_string varname))
-         in
+         let varname = exp_of_string ~loc varname in
          let varname = {varname with pexp_loc = loc} in
-         let fn = "string_of_" ^ (unravel_type my_dbh param_type) in
-         let fn = Exp.ident ~loc { txt = Lident fn; loc } in
+         let fn =
+           match unravel_type ?load_custom_from ?argnam my_dbh param_type with
+           | nam, None ->
+             let fn = exp_of_string ~loc ("string_of_" ^ nam) in
+             [%expr PGOCaml.([%e fn])][@metaloc loc]
+           | _, Some (serialize, _) -> exp_of_string ~loc serialize
+         in
          let head =
            match list, option with
-           | false, false -> [%expr [Some (PGOCaml.([%e fn]) [%e varname])]][@metaloc loc]
-           | false, true -> [%expr [PGOCaml_aux.Option.map PGOCaml.([%e fn]) [%e varname]]][@metaloc loc]
-           | true, false -> [%expr List.map (fun x -> Some (PGOCaml.([%e fn]) x)) [%e varname]][@metaloc loc]
-           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map PGOCaml.([%e fn])) [%e varname]][@metaloc loc]
+           | false, false -> [%expr [Some ([%e fn] [%e varname])]][@metaloc loc]
+           | false, true -> [%expr [PGOCaml_aux.Option.map [%e fn] [%e varname]]][@metaloc loc]
+           | true, false -> [%expr List.map (fun x -> Some ([%e fn] x)) [%e varname]][@metaloc loc]
+           | true, true -> [%expr List.map (fun x -> PGOCaml_aux.Option.map [%e fn]) [%e varname]][@metaloc loc]
          in
          ([%expr [%e head]::[%e tail]][@metaloc loc])
       )
@@ -558,7 +602,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
           ][@metaloc loc]
         )
         fields
-        (mk_conversions ~loc ~dbh:my_dbh results)
+        (mk_conversions ?load_custom_from ~loc ~dbh:my_dbh results)
       |> fun (fields, fshow) ->
           let fshow =
             [%expr let fields = [] in [%e fshow]][@metaloc loc]
@@ -593,7 +637,7 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     let list = mk_listpat ~loc results in
     let convert =
       let conversions =
-        mk_conversions ~loc ~dbh:my_dbh results
+        mk_conversions ?load_custom_from ~loc ~dbh:my_dbh results
         |> List.map fst
       in
       (* Avoid generating a single-element tuple. *)
@@ -606,12 +650,12 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   | false, None ->
     Ok ([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
 
-let expand_sql ~genobject loc dbh extras =
+let expand_sql ~genobject ~config loc dbh extras =
      let query, flags =
        match List.rev extras with
        | [] -> assert false
        | query :: flags -> query, flags in
-     try pgsql_expand ~genobject ~flags loc dbh query
+     try pgsql_expand ~config ~genobject ~flags loc dbh query
      with
      | Failure s -> Error(s, loc)
      | PGOCaml.Error s -> Error(s, loc)
@@ -640,7 +684,7 @@ let list_of_string_args mapper args =
   else
     List.map (function Some x -> x | None -> assert false) maybe_strs
 
-let pgocaml_rewriter _config _cookies =
+let pgocaml_rewriter config _cookies =
   { default_mapper with
     expr = fun mapper expr ->
       let unsupported loc =
@@ -664,7 +708,7 @@ let pgocaml_rewriter _config _cookies =
         ( match list_of_string_args (default_mapper.expr mapper) args with
           | [] -> unsupported loc
           | args ->
-            let x = expand_sql ~genobject loc dbh args in
+            let x = expand_sql ~config ~genobject loc dbh args in
             ( match x with
               | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
                 {pexp_desc; pexp_loc = qloc; pexp_attributes}
