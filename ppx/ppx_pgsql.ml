@@ -42,6 +42,13 @@ type key = PGOCaml.connection_desc
 
 let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 
+[%%if ocaml_version < (4, 08, 0)]
+let exp_of_string ~loc:_ x =
+  let lexer = Lexing.from_string x in
+  (Migrate_parsetree.Parse.expression
+    Migrate_parsetree.Versions.ocaml_407
+    lexer)
+[%%else]
 let exp_of_string ~loc x =
   let lexer =
     let acc = Lexing.from_string ~with_positions:false x in
@@ -52,6 +59,7 @@ let exp_of_string ~loc x =
   (Migrate_parsetree.Parse.expression
     Migrate_parsetree.Versions.ocaml_407
     lexer)
+[%%endif]
 
 (** [get_connection key] Find the database connection specified by [key],
   *  otherwise attempt to create a new one from [key] and return that (or an
