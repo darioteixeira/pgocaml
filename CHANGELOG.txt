@@ -1,3 +1,9 @@
+Release 4.1
+===========
+
+* add support for custom converters
+* document pretty printer for objects
+
 Release 4.0
 ===========
 
