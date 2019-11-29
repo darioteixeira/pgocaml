@@ -369,6 +369,7 @@ val int64_array_of_string : string -> int64_array
 val string_array_of_string : string -> string_array
 val float_array_of_string : string -> float_array
 val timestamp_array_of_string : string -> timestamp_array
+val arbitrary_array_of_string : (string -> 'a) -> string -> 'a option list
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
@@ -1765,9 +1766,11 @@ let find_custom_typconvs =
       Ok (Sexplib.Sexp.load_sexp_conv_exn fname custom_rules_conf_of_sexp)
     with
     | exn ->
+      let cwd = Unix.getcwd () in
       Error (
         Printf.sprintf
-          "Error parsing custom typeconvs file: %s"
+          "Error parsing custom typeconvs file in %s: %s"
+          cwd
           (Printexc.to_string exn))
   in
   let default_custom_converters =
@@ -2010,6 +2013,7 @@ let int64_array_of_string str = List.map (option_map Int64.of_string) (any_array
 let string_array_of_string str = any_array_of_string str
 let float_array_of_string str = List.map (option_map float_of_string) (any_array_of_string str)
 let timestamp_array_of_string str = List.map (option_map timestamp_of_string) (any_array_of_string str)
+let arbitrary_array_of_string f str = List.map (option_map f) (any_array_of_string str)
 
 let is_first_oct_digit c = c >= '0' && c <= '3'
 let is_oct_digit c = c >= '0' && c <= '7'

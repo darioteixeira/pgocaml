@@ -86,7 +86,26 @@ let () =
   List.iter
     begin
       fun obj ->
-        Printf.printf "%d was paid %s" (Userid.to_int obj#userid) obj#salary
+        Printf.printf "%d was paid %s\n" (Userid.to_int obj#userid) obj#salary
     end rows';
+  let all_employees =
+    [%pgsql.object dbh
+      "SELECT array_agg(userid) as userids FROM employees"]
+  in
+  let () = print_endline "All userID's:" in
+  List.iter
+    (fun x ->
+      Option.map
+        (List.iter
+          (fun x ->
+            Option.map (fun userid -> Userid.to_string userid |> Printf.printf "\t%s\n") x
+            |> ignore
+          )
+        )
+        x#userids
+      |> ignore
+    )
+    all_employees;
+
 
   PGOCaml.close dbh

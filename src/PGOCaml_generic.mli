@@ -370,6 +370,7 @@ val int64_array_of_string : string -> int64_array
 val string_array_of_string : string -> string_array
 val float_array_of_string : string -> float_array
 val timestamp_array_of_string : string -> timestamp_array
+val arbitrary_array_of_string : (string -> 'a) -> string -> 'a option list
 
 val bind : 'a monad -> ('a -> 'b monad) -> 'b monad
 val return : 'a -> 'a monad
