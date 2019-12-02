@@ -6,7 +6,8 @@
           )
         )
         (Or
-          ( (Rule (argnam userid))
+          ( (Rule (typnam userid))
+            (Rule (argnam userid))
             (Rule (colnam userid))
           )
         )
@@ -34,7 +35,11 @@
       (deserialize "fun x -> \"$\" ^ x")
     )
   )
-  ( (Rule (colnam userids))
+  ( (And
+      ( (Rule (colnam userids))
+        (Rule (typnam int32_array))
+      )
+    )
     ( (serialize "PGOCaml.string_of_arbitrary_array Userid.to_string")
       (deserialize "PGOCaml.arbitrary_array_of_string Userid.from_string")
     )
