@@ -114,7 +114,7 @@ let name_of_type_wrapper dbh oid =
  * functions recurses through the pg_type table to see if it happens to be an alias
  * for a type which we do know how to handle.
 *)
-let unravel_type dbh ?load_custom_from ?colnam ?argnam orig_type =
+let unravel_type dbh ?load_custom_from ?colnam ?argnam ?typnam orig_type =
   let get_custom typnam =
     match PGOCaml.find_custom_typconvs ?typnam ?lookin:load_custom_from ?colnam ?argnam () with
     | Ok convs ->
@@ -123,7 +123,13 @@ let unravel_type dbh ?load_custom_from ?colnam ?argnam orig_type =
   in
   let rec unravel_type_aux ft =
     let rv =
-      let rv = name_of_type_wrapper dbh ft, None in
+      let rv =
+        match typnam with
+        | Some x -> 
+          Some x, None
+        | None ->
+          name_of_type_wrapper dbh ft, None
+      in
       match PGOCaml.find_custom_typconvs ?typnam:(fst rv) ?lookin:load_custom_from ?colnam ?argnam () with
       | Ok (x) ->
         (fst rv), x
@@ -402,10 +408,17 @@ let pgsql_expand ~genobject ?(flags = []) ~config loc dbh query =
            then String.sub varname 1 (String.length varname - 2)
            else varname
          in
+         let varname, typnam =
+           match String.index_opt varname ':' with
+           | None -> varname, None
+           | Some _ ->
+             let[@warning "-8"] [varname; typnam] = String.split_on_char ':' varname in
+             varname, Some (String.trim typnam)
+         in
          let varname = exp_of_string ~loc varname in
          let varname = {varname with pexp_loc = loc} in
          let fn =
-           match unravel_type ?load_custom_from ?argnam my_dbh param_type with
+           match unravel_type ?load_custom_from ?argnam ?typnam my_dbh param_type with
            | nam, None ->
              let fn = exp_of_string ~loc ("string_of_" ^ nam) in
              [%expr PGOCaml.([%e fn])][@metaloc loc]

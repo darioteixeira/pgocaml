@@ -1,12 +1,4 @@
 let init_dbh dbh =
-  let () = [%pgsql
-    dbh "execute"
-    " DO $$ BEGIN
-      CREATE DOMAIN userid AS int not null;
-      EXCEPTION
-        WHEN duplicate_object THEN null;
-      END $$"]
-  in
   let () = [%pgsql dbh "execute" "create temporary table employees
     (
     userid serial primary key,
@@ -24,7 +16,7 @@ let init_dbh dbh =
       END $$"]
   in
   [%pgsql dbh "execute" "CREATE TEMPORARY TABLE customtable (
-    userid userid NOT NULL,
+    userid int4 NOT NULL,
     salary cash_money NOT NULL
   )"]
 
@@ -73,9 +65,9 @@ let () =
       fun obj ->
         print_endline obj#pp
     end rows;
-  let userid = Userid.from_string "69" in
+  let uid = Userid.from_string "69" in
   let salary = "$420.00" in
-  let () = [%pgsql dbh "load_custom_from=tests_ppx/config.sexp" "INSERT INTO customtable (userid, salary) VALUES ($userid, $salary)"] in
+  let () = [%pgsql dbh "load_custom_from=tests_ppx/config.sexp" "INSERT INTO customtable (userid, salary) VALUES (${uid:userid}, $salary)"] in
   let rows' =
     [%pgsql.object
       dbh
@@ -86,7 +78,26 @@ let () =
   List.iter
     begin
       fun obj ->
-        Printf.printf "%d was paid %s" (Userid.to_int obj#userid) obj#salary
+        Printf.printf "%d was paid %s\n" (Userid.to_int obj#userid) obj#salary
     end rows';
+  let all_employees =
+    [%pgsql.object dbh
+      "SELECT array_agg(userid) as userids FROM employees"]
+  in
+  let () = print_endline "All userID's:" in
+  List.iter
+    (fun x ->
+      Option.map
+        (List.iter
+          (fun x ->
+            Option.map (fun userid -> Userid.to_string userid |> Printf.printf "\t%s\n") x
+            |> ignore
+          )
+        )
+        x#userids
+      |> ignore
+    )
+    all_employees;
+
 
   PGOCaml.close dbh
