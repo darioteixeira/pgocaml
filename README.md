@@ -172,6 +172,21 @@ in
 ...
 ```
 
+PG'OCaml's PPX is not given type information by the compiler, so it will
+sometimes have trouble figuring the correct types for arguments. While one may
+find a parameter's serializer based in its name, this is not ideal,
+particularly when using `${...}` parameters. In cases like this, you may use a
+syntax similar to OCaml's native type constraint:
+
+```ocaml
+let () = [%pgsql dbh "INSERT INTO users VALUES ${u : userid}"] in
+...
+```
+
+Please note that the `${u : userid}` above will NOT be compiled into an OCaml
+type constraint. Its only effect is to supply `userid` as the `typnam` to the
+serializer resolver.
+
 ----------------------------------------------------------------------
 
 PG'OCaml (C) Copyright 2005-2009 Merjis Ltd, Richard W.M. Jones (rich@annexia.org)
