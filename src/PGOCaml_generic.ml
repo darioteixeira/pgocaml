@@ -490,7 +490,7 @@ let max_message_length = ref Sys.max_string_length
 (* Receive a single result message.  Parse out the message type,
  * message length, and binary message content.
  *)
-let receive_message { ichan; chan; _ } =
+let receive_raw_message { ichan; chan; _ } =
   (* Flush output buffer. *)
   flush chan >>= fun () ->
 
@@ -525,11 +525,6 @@ let receive_message { ichan; chan; _ } =
     return (typ, Bytes.to_string msg)
   )
 
-(* Send a message and expect a single result. *)
-let send_recv conn msg =
-  send_message conn msg >>= fun () ->
-  receive_message conn
-
 (* Parse a back-end message. *)
 type msg_t =
   | AuthenticationOk
@@ -547,6 +542,7 @@ type msg_t =
   | ErrorResponse of (char * string) list
   | NoData
   | NoticeResponse of (char * string) list
+  | NotificationResponse
   | ParameterDescription of int32 list
   | ParameterStatus of string * string
   | ParseComplete
@@ -583,6 +579,7 @@ let string_of_msg_t = function
       sprintf "NoticeResponse [%s]"
 	(String.concat "; "
 	   (List.map (fun (k, v) -> sprintf "%c, %S" k v) strs))
+  | NotificationResponse -> "NotificationResponse"
   | ParameterDescription fields ->
       sprintf "ParameterDescription [%s]"
 	(String.concat "; "
@@ -724,6 +721,9 @@ let parse_backend_message (typ, msg) =
 	in
 	NoticeResponse (loop ())
 
+    | 'A' ->
+        NotificationResponse
+
     | 'Z' ->
 	let c = get_char () in
 	ReadyForQuery c
@@ -802,6 +802,22 @@ let parse_backend_message (typ, msg) =
   if debug_protocol then eprintf "< %s\n%!" (string_of_msg_t msg);
 
   msg
+
+let rec receive_message conn =
+  receive_raw_message conn >>= fun msg ->
+  match parse_backend_message msg with
+  | ParameterStatus _
+  | NoticeResponse _
+  | NotificationResponse ->
+    (* Skip asynchronous messages *)
+    receive_message conn
+  | msg ->
+    return msg
+
+(* Send a message and expect a single result. *)
+let send_recv conn msg =
+  send_message conn msg >>= fun () ->
+  receive_message conn
 
 let verbose = ref 1
 
@@ -892,7 +908,6 @@ let pg_error ?conn fields =
    | Some conn ->
        let rec loop () =
 	 receive_message conn >>= fun msg ->
-	 let msg = parse_backend_message msg in
 	 match msg with ReadyForQuery _ -> return () | _ -> loop ()
        in
          loop ()
@@ -1040,7 +1055,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
     match host with
     | `Hostname hostname ->
        let addrs = Unix.getaddrinfo hostname (sprintf "%d" port) [Unix.AI_SOCKTYPE(Unix.SOCK_STREAM)] in
-       if addrs = [] then 
+       if addrs = [] then
 	 raise (Error ("PGOCaml: unknown host: " ^ hostname))
        else
 	 List.map (fun {Unix.ai_addr = sockaddr; _} -> sockaddr) addrs
@@ -1072,7 +1087,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
   let sock_channels =
     let rec create_sock_channels sockaddrs =
       match sockaddrs with
-	[] -> 
+	[] ->
 	  raise (Error ("PGOCaml: Could not connect to database"))
       | sockaddr :: sockaddrs ->
 	 catch
@@ -1083,7 +1098,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
         | exn -> raise exn)
     in
     create_sock_channels sockaddrs in
-    
+
   let do_connect () =
     sock_channels >>= fun (ichan, chan) ->
     catch (fun () ->
@@ -1105,15 +1120,11 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
       (match msg with
 	| Some msg -> send_recv conn msg
 	| None -> receive_message conn) >>= fun msg ->
-      let msg = parse_backend_message msg in
 
       match msg with
       | ReadyForQuery _ -> return () (* Finished connecting! *)
       | BackendKeyData _ ->
 	  (* XXX We should save this key. *)
-	  loop None
-      | ParameterStatus _ ->
-	  (* Should we do something with this? *)
 	  loop None
       | AuthenticationOk -> loop None
       | AuthenticationKerberosV5 ->
@@ -1139,9 +1150,6 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
 	  fail (Error "PGOCaml: SCM Credential authentication not supported")
       | ErrorResponse err ->
 	  pg_error err
-      | NoticeResponse _err ->
-	  (* XXX Do or print something here? *)
-	  loop None
       | _ ->
 	  (* Silently ignore unknown or unexpected message types. *)
 	  loop None
@@ -1198,7 +1206,6 @@ let ping conn =
     (* Wait for ReadyForQuery. *)
     let rec loop () =
       receive_message conn >>= fun msg ->
-      let msg = parse_backend_message msg in
       match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
@@ -1230,14 +1237,10 @@ let prepare conn ~query ?(name = "") ?(types = []) () =
     sync_msg conn >>= fun () ->
     let rec loop () =
       receive_message conn >>= fun msg ->
-      let msg = parse_backend_message msg in
       match msg with
       | ErrorResponse err -> pg_error ~conn err
       | ParseComplete -> loop ()
       | ReadyForQuery _ -> return () (* Finished! *)
-      | NoticeResponse _ ->
-	  (* XXX Do or print something here? *)
-	  loop ()
       | _ ->
 	  fail (Error ("PGOCaml: unknown response from parse: " ^
 			  string_of_msg_t msg))
@@ -1281,13 +1284,9 @@ let iter_execute conn name portal params proc () =
     let rec loop () =
       (* NB: receive_message flushes the output connection. *)
       receive_message conn >>= fun msg ->
-      let msg = parse_backend_message msg in
       match msg with
       | ReadyForQuery _ -> return () (* Finished! *)
       | ErrorResponse err -> pg_error ~conn err (* Error *)
-      | NoticeResponse _err ->
-	  (* XXX Do or print something here? *)
-	  loop ()
       | BindComplete -> loop ()
       | CommandComplete _ -> loop ()
       | EmptyQueryResponse -> loop ()
@@ -1300,17 +1299,6 @@ let iter_execute conn name portal params proc () =
 	  ) fields in
 	  proc fields >>= loop
       | NoData -> loop ()
-      | ParameterStatus _ ->
-	  (* 43.2.6: ParameterStatus messages will be generated whenever
-	   * the active value changes for any of the parameters the backend
-	   * believes the frontend should know about. Most commonly this
-	   * occurs in response to a SET SQL command executed by the
-	   * frontend, and this case is effectively synchronous -- but it
-	   * is also possible for parameter status changes to occur because
-	   * the administrator changed a configuration file and then sent
-	   * the SIGHUP signal to the postmaster.
-	   *)
-	  loop ()
       | _ ->
 	  fail
 	    (Error ("PGOCaml: unknown response message: " ^
@@ -1410,14 +1398,10 @@ let close_statement conn ?(name = "") () =
   sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
-    let msg = parse_backend_message msg in
     match msg with
     | ErrorResponse err -> pg_error ~conn err
     | CloseComplete -> loop ()
     | ReadyForQuery _ -> return () (* Finished! *)
-    | NoticeResponse _ ->
-	(* XXX Do or print something here? *)
-	loop ()
     | _ ->
 	fail (Error ("PGOCaml: unknown response from close: " ^
 			string_of_msg_t msg))
@@ -1432,14 +1416,10 @@ let close_portal conn ?(portal = "") () =
   sync_msg conn >>= fun () ->
   let rec loop () =
     receive_message conn >>= fun msg ->
-    let msg = parse_backend_message msg in
     match msg with
     | ErrorResponse err -> pg_error ~conn err
     | CloseComplete -> loop ()
     | ReadyForQuery _ -> return () (* Finished! *)
-    | NoticeResponse _ ->
-	(* XXX Do or print something here? *)
-	loop ()
     | _ ->
 	fail (Error ("PGOCaml: unknown response from close: " ^
 			string_of_msg_t msg))
@@ -1471,7 +1451,7 @@ type params_description = param_description list
 
 let expect_rfq conn ret =
   receive_message conn >>= fun msg ->
-  match parse_backend_message msg with
+  match msg with
     | ReadyForQuery _ -> return ret
     | msg -> fail @@
       Error ("PGOCaml: unknown response from describe: " ^ string_of_msg_t msg)
@@ -1483,7 +1463,6 @@ let describe_statement conn ?(name = "") () =
   send_message conn msg >>= fun () ->
   sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
-  let msg = parse_backend_message msg in
   ( match msg with
     | ErrorResponse err -> pg_error ~conn err
     | ParameterDescription params ->
@@ -1496,7 +1475,6 @@ let describe_statement conn ?(name = "") () =
 	fail (Error ("PGOCaml: unknown response from describe: " ^
 			string_of_msg_t msg))) >>= fun params ->
   receive_message conn >>= fun msg ->
-  let msg = parse_backend_message msg in
   ( match msg with
   | ErrorResponse err -> pg_error ~conn err
   | NoData -> return (params, None)
@@ -1524,7 +1502,6 @@ let describe_portal conn ?(portal = "") () =
   send_message conn msg >>= fun () ->
   sync_msg conn >>= fun () ->
   receive_message conn >>= fun msg ->
-  let msg = parse_backend_message msg in
   ( match msg with
   | ErrorResponse err -> pg_error ~conn err
   | NoData -> return None
