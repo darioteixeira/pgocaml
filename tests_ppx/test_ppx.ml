@@ -81,7 +81,9 @@ let () =
         Printf.printf "%d was paid %s\n" (Userid.to_int obj#userid) obj#salary
     end rows';
   let all_employees =
-    [%pgsql.object dbh
+    [%pgsql.object
+      dbh
+      "load_custom_from=tests_ppx/config.sexp"
       "SELECT array_agg(userid) as userids FROM employees"]
   in
   let () = print_endline "All userID's:" in
