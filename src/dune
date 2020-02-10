@@ -1,8 +1,20 @@
+;(rule
+;  (targets PGOCaml_config.ml)
+;  (deps PGOCaml_config.ml.in)
+;  (action
+;    (with-stdout-to PGOCaml_config.ml (run ./genconfig.sh))))
+
+(executable
+  (name PGOCaml_genconfig)
+  (preprocess
+    (pps ppx_sexp_conv ppx_deriving.show))
+  (modules PGOCaml_genconfig))
+
 (rule
   (targets PGOCaml_config.ml)
-  (deps PGOCaml_config.ml.in)
+  (deps PGOCaml_genconfig.exe)
   (action
-    (with-stdout-to PGOCaml_config.ml (run ./genconfig.sh))))
+    (with-stdout-to PGOCaml_config.ml (run ./PGOCaml_genconfig.exe))))
 
 (library
   (name PGOCaml)
@@ -12,4 +24,3 @@
     (pps ppx_sexp_conv ppx_deriving.show))
   (wrapped false)
   (modules PGOCaml_aux PGOCaml PGOCaml_generic PGOCaml_config))
-
