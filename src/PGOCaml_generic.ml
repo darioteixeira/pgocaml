@@ -1866,7 +1866,8 @@ let point_of_string =
       let space = rep (set " \t") in
       seq [ space ; p ; space ] in
     let sign = opt (set "+-") in
-    let num = seq [ sign ; rep1 digit ; opt (char '.') ; rep digit ] in
+    let num = seq [ sign ; rep1 digit ; opt (char '.') ; rep digit
+                  ; opt (seq [ set "Ee"; set "+-"; rep1 digit ]) ] in
     let nan = seq [ set "Nn"; char 'a'; set "Nn" ] in
     let inf = seq [ sign ; set "Ii" ; str "nfinity" ] in
     let float_pat = Re.alt [num ; nan ; inf ] in
