@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "pgocaml_ppx"
-version: "4.2"
+version: "4.2.1"
 synopsis: "PPX extension for PGOCaml"
 description: """
 PGOCaml provides an interface to PostgreSQL databases for OCaml applications.
