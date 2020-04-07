@@ -298,6 +298,7 @@ type int64_array = int64 option list
 type string_array = string option list
 type float_array = float option list
 type timestamp_array = Calendar.t option list
+type uuid_array = string option list
 
 (** The following conversion functions are used by pa_pgsql to convert
     values in and out of the database. *)
@@ -332,6 +333,7 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
+val string_of_uuid_array : uuid_array -> string
 
 val comment_src_loc : unit -> bool
 
