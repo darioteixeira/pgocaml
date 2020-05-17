@@ -296,6 +296,7 @@ type int64_array = int64 option list
 type string_array = string option list
 type float_array = float option list
 type timestamp_array = Calendar.t option list
+type uuid_array = string option list
 
 (** The following conversion functions are used by pa_pgsql to convert
   * values in and out of the database.
@@ -331,6 +332,7 @@ val string_of_bytea_array : string_array -> string
 val string_of_float_array : float_array -> string
 val string_of_timestamp_array : timestamp_array -> string
 val string_of_arbitrary_array : ('a -> string) -> 'a option list -> string
+val string_of_uuid_array : string_array -> string
 
 val comment_src_loc : unit -> bool
 
@@ -1563,6 +1565,7 @@ let name_of_type = function
   | 2278_l -> "unit"         (* VOID *)
   | 1700_l -> "string"       (* NUMERIC *)
   | 2950_l -> "uuid"         (* UUID *)
+  | 2951_l -> "uuid_array"   (* UUID[] *)
   | 3802_l -> "string"       (* JSONB *)
   | 3807_l -> "string_array" (* JSONB[] *)
   | i ->
@@ -1585,6 +1588,7 @@ type int64_array = int64 option list
 type string_array = string option list
 type float_array = float option list
 type timestamp_array = Calendar.t option list
+type uuid_array = uuid option list
 
 let string_of_hstore hstore =
   let string_of_quoted str = "\"" ^ str ^ "\"" in
@@ -1684,6 +1688,7 @@ let string_of_string_array a = string_of_any_array (List.map (option_map escape_
 let string_of_float_array a = string_of_any_array (List.map (option_map string_of_float) a)
 let string_of_timestamp_array a = string_of_any_array (List.map (option_map string_of_timestamp) a)
 let string_of_arbitrary_array f a = string_of_any_array (List.map (option_map f) a)
+let string_of_uuid_array a = string_of_any_array (List.map (option_map escape_string) a)
 
 let comment_src_loc () =
   match Sys.getenv_opt "PGCOMMENT_SRC_LOC" with
