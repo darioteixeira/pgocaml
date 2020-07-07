@@ -21,11 +21,11 @@ open PGOCaml_aux
 open Printf
 
 open Migrate_parsetree
-open Migrate_parsetree.Ast_407.Ast_mapper
-open Migrate_parsetree.Ast_407.Ast_helper
-open Migrate_parsetree.Ast_407.Asttypes
-open Migrate_parsetree.Ast_407.Parsetree
-open Migrate_parsetree.Ast_407.Longident
+open Migrate_parsetree.Ast_408.Ast_mapper
+open Migrate_parsetree.Ast_408.Ast_helper
+open Migrate_parsetree.Ast_408.Asttypes
+open Migrate_parsetree.Ast_408.Parsetree
+open Migrate_parsetree.Ast_408.Longident
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -46,7 +46,7 @@ let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 let exp_of_string ~loc:_ x =
   let lexer = Lexing.from_string x in
   (Migrate_parsetree.Parse.expression
-    Migrate_parsetree.Versions.ocaml_407
+    Migrate_parsetree.Versions.ocaml_408
     lexer)
 [%%else]
 let exp_of_string ~loc x =
@@ -57,7 +57,7 @@ let exp_of_string ~loc x =
     acc
   in
   (Migrate_parsetree.Parse.expression
-    Migrate_parsetree.Versions.ocaml_407
+    Migrate_parsetree.Versions.ocaml_408
     lexer)
 [%%endif]
 
@@ -125,7 +125,7 @@ let unravel_type dbh ?load_custom_from ?colnam ?argnam ?typnam orig_type =
     let rv =
       let rv =
         match typnam with
-        | Some x -> 
+        | Some x ->
           Some x, None
         | None ->
           name_of_type_wrapper dbh ft, None
@@ -183,7 +183,9 @@ let loc_raise _loc exn =
 let const_string ~loc str =
   { pexp_desc = Pexp_constant (Pconst_string (str, None));
     pexp_loc = loc;
-    pexp_attributes = []; }
+    pexp_attributes = [];
+    pexp_loc_stack = []
+  }
 
 let parse_flags _config flags loc =
   let f_execute = ref false in
@@ -295,9 +297,10 @@ let coretype_of_type ~loc ~dbh oid =
     | "timestamp", _ -> Longident.Ldot(Ldot(Lident "CalendarLib", "Calendar"), "t")
     | nam, _ -> Lident nam
   in
-  { ptyp_desc = Ptyp_constr({txt = typ; loc}, [])
-  ; ptyp_loc = loc
-  ; ptyp_attributes = []
+  { ptyp_desc = Ptyp_constr({txt = typ; loc}, []);
+    ptyp_loc = loc;
+    ptyp_attributes = [];
+    ptyp_loc_stack = []
   }
 
 (** produce a list pattern to match the result of a query *)
@@ -731,8 +734,7 @@ let pgocaml_rewriter config _cookies =
           | args ->
             let x = expand_sql ~config ~genobject loc dbh args in
             ( match x with
-              | Rresult.Ok ({ pexp_desc; pexp_loc = _ ; pexp_attributes }) ->
-                {pexp_desc; pexp_loc = qloc; pexp_attributes}
+              | Rresult.Ok pexp -> {pexp with pexp_loc = qloc}
               | Error(s, loc) ->
                 { expr with
                   pexp_desc = Pexp_extension (
@@ -764,4 +766,4 @@ let _ =
 
 let () =
   Driver.register ~name:"pgocaml" ~reset_args:(fun _ -> ()) ~args:[]
-    Versions.ocaml_407 pgocaml_rewriter
+    Versions.ocaml_408 pgocaml_rewriter
