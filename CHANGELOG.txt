@@ -1,3 +1,9 @@
+Release 4.2.1
+=============
+
+* 4.08 Ast for ppx
+* Add oid for UUID arrays
+
 Release 4.2
 ===========
 
