@@ -1,7 +1,7 @@
 (executable
   (name test_ppx)
   (preprocessor_deps config.sexp)
-  (libraries oUnit result pgocaml_ppx)
+  (libraries oUnit result pgocaml)
   (preprocess (pps pgocaml_ppx)))
 
 (alias
