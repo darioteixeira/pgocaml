@@ -2,13 +2,6 @@
   (name pgocaml_ppx)
   (public_name pgocaml_ppx)
   (kind ppx_rewriter)
-  (preprocess
-    (pps ppx_tools_versioned.metaquot_408 ppx_optcomp))
-  (libraries
-    ppx_tools
-    rresult
-    compiler-libs.common
-    ppx_tools_versioned.metaquot_408
-    ocaml-migrate-parsetree
-    pgocaml)
-  (modules Ppx_pgsql))
+  (preprocess (pps ppx_optcomp ppxlib.metaquot))
+  (libraries ppxlib pgocaml)
+  (modules ppx_pgsql))

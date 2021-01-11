@@ -89,15 +89,14 @@ let () =
   let () = print_endline "All userID's:" in
   List.iter
     (fun x ->
-      Option.map
-        (List.iter
-          (fun x ->
-            Option.map (fun userid -> Userid.to_string userid |> Printf.printf "\t%s\n") x
-            |> ignore
-          )
-        )
-        x#userids
-      |> ignore
+       match x#userids with
+       | None -> ()
+       | Some l ->
+         (List.iter
+            (function
+              | None -> ()
+              | Some userid -> Userid.to_string userid |> Printf.printf "\t%s\n"))
+           l
     )
     all_employees;
 

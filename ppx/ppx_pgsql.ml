@@ -18,14 +18,10 @@
  *)
 
 open PGOCaml_aux
-open Printf
-
-open Migrate_parsetree
-open Migrate_parsetree.Ast_408.Ast_mapper
-open Migrate_parsetree.Ast_408.Ast_helper
-open Migrate_parsetree.Ast_408.Asttypes
-open Migrate_parsetree.Ast_408.Parsetree
-open Migrate_parsetree.Ast_408.Longident
+open Ppxlib
+open Ast_helper
+open Asttypes
+open Parsetree
 
 let nullable_name = "nullable"
 let unravel_name = "unravel"
@@ -45,20 +41,16 @@ let connections : (key, unit PGOCaml.t) Hashtbl.t = Hashtbl.create 16
 [%%if ocaml_version < (4, 08, 0)]
 let exp_of_string ~loc:_ x =
   let lexer = Lexing.from_string x in
-  (Migrate_parsetree.Parse.expression
-    Migrate_parsetree.Versions.ocaml_408
-    lexer)
+  Parse.expression lexer
 [%%else]
 let exp_of_string ~loc x =
   let lexer =
     let acc = Lexing.from_string ~with_positions:false x in
-    acc.Lexing.lex_start_p <- loc.Warnings.loc_start;
-    acc.Lexing.lex_curr_p <- loc.Warnings.loc_end;
+    acc.Lexing.lex_start_p <- loc.loc_start;
+    acc.Lexing.lex_curr_p <- loc.loc_end;
     acc
   in
-  (Migrate_parsetree.Parse.expression
-    Migrate_parsetree.Versions.ocaml_408
-    lexer)
+  Parse.expression lexer
 [%%endif]
 
 (** [get_connection key] Find the database connection specified by [key],
@@ -181,13 +173,13 @@ let loc_raise _loc exn =
   raise exn
 
 let const_string ~loc str =
-  { pexp_desc = Pexp_constant (Pconst_string (str, None));
+  { pexp_desc = Pexp_constant (Pconst_string (str, loc, None));
     pexp_loc = loc;
     pexp_attributes = [];
     pexp_loc_stack = []
   }
 
-let parse_flags _config flags loc =
+let parse_flags flags loc =
   let f_execute = ref false in
   let f_nullable_results = ref false in
   let host = ref None in
@@ -313,9 +305,9 @@ let mk_listpat ~loc results =
     (range 0 (List.length results))
     ([%pat? []][@metaloc loc])
 
-let pgsql_expand ~genobject ?(flags = []) ~config loc dbh query =
+let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let open Rresult in
-  let (key, f_execute, f_nullable_results, comment_src_loc, show, load_custom_from) = parse_flags config flags loc in
+  let (key, f_execute, f_nullable_results, comment_src_loc, show, load_custom_from) = parse_flags flags loc in
   let query =
     if comment_src_loc
     then
@@ -360,11 +352,11 @@ let pgsql_expand ~genobject ?(flags = []) ~config loc dbh query =
           | `Var (varname, false, option) ->
             let i = next () in
             Hashtbl.add varmap i (varname, false, option);
-            sprintf "$%d" i
+            Printf.sprintf "$%d" i
           | `Var (varname, true, option) ->
             let i = next () in
             Hashtbl.add varmap i (varname, true, option);
-            sprintf "($%d)" i
+            Printf.sprintf "($%d)" i
         ) split
       ) in
     let varmap = Hashtbl.fold (
@@ -674,12 +666,12 @@ let pgsql_expand ~genobject ?(flags = []) ~config loc dbh query =
   | false, None ->
     Ok ([%expr PGOCaml.bind [%e expr] (fun _rows -> PGOCaml.return ())][@metaloc loc])
 
-let expand_sql ~genobject ~config loc dbh extras =
+let expand_sql ~genobject loc dbh extras =
      let query, flags =
        match List.rev extras with
        | [] -> assert false
        | query :: flags -> query, flags in
-     try pgsql_expand ~config ~genobject ~flags loc dbh query
+     try pgsql_expand ~genobject ~flags loc dbh query
      with
      | Failure s -> Error(s, loc)
      | PGOCaml.Error s -> Error(s, loc)
@@ -689,81 +681,44 @@ let expand_sql ~genobject ~config loc dbh extras =
      | exn -> Error("Unexpected PG'OCaml PPX error: " ^ Printexc.to_string exn, loc)
 
 (* Returns the empty list if one of the elements is not a string constant *)
-let list_of_string_args mapper args =
+let list_of_string_args args =
   let maybe_strs =
-    List.map
-      (function
-        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, None)); _})
+    List.map (function
+        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, _, None)); _})
           -> Some str
-        | (_, other) ->
-          match mapper other with
-          | {pexp_desc = Pexp_constant (Pconst_string (str, None)); _}
-            -> Some str
-          | _ -> None
-      )
-      args
-  in
-  if List.mem None maybe_strs then
-    []
-  else
-    List.map (function Some x -> x | None -> assert false) maybe_strs
+        | _ -> None) args in
+  if List.mem None maybe_strs then []
+  else List.map (function Some x -> x | None -> assert false) maybe_strs
 
-let pgocaml_rewriter config _cookies =
-  { default_mapper with
-    expr = fun mapper expr ->
-      let unsupported loc =
-        { expr with
-          pexp_desc = Pexp_extension (
-              extension_of_error @@
-              Location.error ~loc (Printf.sprintf "Something unsupported")
-            )
-        }
-      in
-      match expr with
-      | { pexp_desc =
-            Pexp_extension (
-              { txt ; loc }
-            , PStr [{ pstr_desc = Pstr_eval ({pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _}, _); _}]
-            )
-        ; _
-        } when String.starts_with txt "pgsql" ->
-        let open Rresult in
-        let genobject = txt = "pgsql.object" in
-        ( match list_of_string_args (default_mapper.expr mapper) args with
-          | [] -> unsupported loc
-          | args ->
-            let x = expand_sql ~config ~genobject loc dbh args in
-            ( match x with
-              | Rresult.Ok pexp -> {pexp with pexp_loc = qloc}
-              | Error(s, loc) ->
-                { expr with
-                  pexp_desc = Pexp_extension (
-                    extension_of_error @@
-                    Location.error ~loc ("PG'OCaml PPX error: " ^ s))
-                ; pexp_loc = loc
-                }
-            )
-        )
-      | { pexp_desc =
-            Pexp_extension (
-              { txt = "pgsql"; loc }
-            , _)
-        ; _
-        } ->
-        unsupported loc
-      | other ->
-        default_mapper.expr mapper other
-  }
+let gen_expand genobject ~loc ~path:_ expr = match expr with
+  | {pexp_desc = Pexp_apply (dbh, args); pexp_loc = qloc; _} ->
+    begin match list_of_string_args args with
+      | [] -> Location.raise_errorf ~loc "Something unsupported"
+      | args -> begin match expand_sql ~genobject loc dbh args with
+          | Ok pexp -> { pexp with pexp_loc = qloc }
+          | Error(s, loc) ->
+            Location.raise_errorf ~loc "PG'OCaml PPX error: %s" s
+        end
+    end
+  | _ -> Location.raise_errorf ~loc "Something unsupported"
 
-(*let migration =
-  Versions.migrate Versions.ocaml_407 Versions.ocaml_current
 
-let _ =
-  Migrate_parsetree.Compiler_libs.Ast_mapper.register
-    "pgocaml"
-    (fun args -> migration.copy_mapper (pgocaml_mapper args))
-*)
+let extension_pgsql =
+  Extension.declare
+    "pgsql"
+    Extension.Context.expression
+    Ast_pattern.(single_expr_payload __)
+    (gen_expand false)
+
+let extension_pgsql_object =
+  Extension.declare
+    "pgsql.object"
+    Extension.Context.expression
+    Ast_pattern.(single_expr_payload __)
+    (gen_expand true)
+
+let rule_pgsql = Context_free.Rule.extension extension_pgsql
+let rule_pgsql_object = Context_free.Rule.extension extension_pgsql_object
 
 let () =
-  Driver.register ~name:"pgocaml" ~reset_args:(fun _ -> ()) ~args:[]
-    Versions.ocaml_408 pgocaml_rewriter
+  Driver.register_transformation "pgocaml" ~rules:[rule_pgsql; rule_pgsql_object]
