@@ -1,7 +1,23 @@
-(library
-  (name pgocaml_ppx)
-  (public_name pgocaml_ppx)
-  (kind ppx_rewriter)
-  (preprocess (pps ppx_optcomp ppxlib.metaquot))
-  (libraries ppxlib pgocaml)
-  (modules ppx_pgsql))
+(* -*- tuareg -*- *)
+
+let () =
+  let cmd = "ocamlfind query -format %v ppxlib" in
+  let omp = match Jbuild_plugin.V1.run_and_read_lines cmd with
+    | [] | _ :: _ :: _ -> failwith "no ppxlib installed"
+    | [ version ] ->
+      match String.split_on_char '.' version with
+      | [ major; minor; _ ] ->
+        if int_of_string major > 0 then 2
+        else if int_of_string minor > 15 then 2
+        else 1
+      | _ -> failwith ("version " ^ version ^ " not understood") in
+  Printf.kprintf
+    Jbuild_plugin.V1.send
+    "(library
+     (name pgocaml_ppx)
+     (public_name pgocaml_ppx)
+     (kind ppx_rewriter)
+     (preprocess (pps ppx_optcomp ppxlib.metaquot))
+     (libraries ppxlib pgocaml (select compat.ml from (-> compat.%d.ml)))
+     (modules compat ppx_pgsql))"
+    omp

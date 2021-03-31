@@ -173,11 +173,7 @@ let loc_raise _loc exn =
   raise exn
 
 let const_string ~loc str =
-  { pexp_desc = Pexp_constant (Pconst_string (str, loc, None));
-    pexp_loc = loc;
-    pexp_attributes = [];
-    pexp_loc_stack = []
-  }
+  Ast_builder.Default.estring ~loc str
 
 let parse_flags flags loc =
   let f_execute = ref false in
@@ -684,8 +680,8 @@ let expand_sql ~genobject loc dbh extras =
 let list_of_string_args args =
   let maybe_strs =
     List.map (function
-        | (Nolabel, {pexp_desc = Pexp_constant (Pconst_string (str, _, None)); _})
-          -> Some str
+        | (Nolabel, {pexp_desc = Pexp_constant cst; _})
+          -> Compat.string_literal cst
         | _ -> None) args in
   if List.mem None maybe_strs then []
   else List.map (function Some x -> x | None -> assert false) maybe_strs
