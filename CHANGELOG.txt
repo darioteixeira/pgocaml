@@ -1,3 +1,10 @@
+Release 4.2.3
+=============
+
+* Release constraints on ppxlib
+* Fix incorrect PGHOST for unix domain sockets
+* Use /var/run/postgresql by default instead of /tmp
+
 Release 4.2.1
 =============
 
