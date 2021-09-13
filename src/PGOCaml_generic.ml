@@ -291,6 +291,7 @@ type uuid = string
 type jsonb = string
 
 type bool_array = bool option list
+type int16_array = int16 option list
 type int32_array = int32 option list
 type int64_array = int64 option list
 type string_array = string option list
@@ -325,6 +326,7 @@ val string_of_string : string -> string
 val string_of_unit : unit -> string
 
 val string_of_bool_array : bool_array -> string
+val string_of_int16_array : int16_array -> string
 val string_of_int32_array : int32_array -> string
 val string_of_int64_array : int64_array -> string
 val string_of_string_array : string_array -> string
@@ -366,6 +368,7 @@ val bytea_of_string : string -> bytea
 val unit_of_string : string -> unit
 
 val bool_array_of_string : string -> bool_array
+val int16_array_of_string : string -> int16_array
 val int32_array_of_string : string -> int32_array
 val int64_array_of_string : string -> int64_array
 val string_array_of_string : string -> string_array
@@ -1546,6 +1549,7 @@ let name_of_type = function
   | 701_l -> "float"	     (* FLOAT4, FLOAT8 *)
   | 869_l -> "inet"          (* INET *)
   | 1000_l -> "bool_array"   (* BOOLEAN[] *)
+  | 1005_l -> "int16_array"  (* INT2[] *)
   | 1001_l -> "bytea_array"   (* BYTEA[] *)
   | 1007_l -> "int32_array"  (* INT4[] *)
   | 1009_l -> "string_array" (* TEXT[] *)
@@ -1583,6 +1587,7 @@ type uuid = string
 type jsonb = string
 
 type bool_array = bool option list
+type int16_array = int16 option list
 type int32_array = int32 option list
 type int64_array = int64 option list
 type string_array = string option list
@@ -1682,6 +1687,7 @@ let escape_string str =
   Buffer.contents buf
 
 let string_of_bool_array a = string_of_any_array (List.map (option_map string_of_bool) a)
+let string_of_int16_array a = string_of_any_array (List.map (option_map Stdlib.string_of_int) a)
 let string_of_int32_array a = string_of_any_array (List.map (option_map Int32.to_string) a)
 let string_of_int64_array a = string_of_any_array (List.map (option_map Int64.to_string) a)
 let string_of_string_array a = string_of_any_array (List.map (option_map escape_string) a)
@@ -1991,6 +1997,7 @@ let any_array_of_string str =
   List.rev accum
 
 let bool_array_of_string str = List.map (option_map bool_of_string) (any_array_of_string str)
+let int16_array_of_string str = List.map (option_map Stdlib.int_of_string) (any_array_of_string str)
 let int32_array_of_string str = List.map (option_map Int32.of_string) (any_array_of_string str)
 let int64_array_of_string str = List.map (option_map Int64.of_string) (any_array_of_string str)
 let string_array_of_string str = any_array_of_string str
