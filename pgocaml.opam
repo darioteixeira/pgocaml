@@ -17,7 +17,7 @@ dev-repo: "git+https://github.com/darioteixeira/pgocaml.git"
 license: "LGPL-2.0-only with OCaml-LGPL-linking-exception"
 build: [["dune" "build" "-p" name "-j" jobs]]
 depends: [
-  "calendar" {>= "2.0"}
+  "calendar" {>= "2.03.1"}
   "csv"
   "dune" {>= "1.10"}
   "hex"
