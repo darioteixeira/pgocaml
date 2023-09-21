@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "pgocaml"
-version: "4.3.0"
+version: "4.4.0"
 synopsis: "Native OCaml interface to PostgreSQL databases"
 description: """
 PGOCaml provides an interface to PostgreSQL databases for OCaml applications.
@@ -18,6 +18,7 @@ license: "LGPL-2.0-only with OCaml-LGPL-linking-exception"
 build: [["dune" "build" "-p" name "-j" jobs]]
 depends: [
   "calendar" {>= "2.0"}
+  "camlp-streams"
   "csv"
   "dune" {>= "1.10"}
   "hex"

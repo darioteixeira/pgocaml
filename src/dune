@@ -19,7 +19,7 @@
 (library
   (name PGOCaml)
   (public_name pgocaml)
-  (libraries calendar csv hex re rresult sexplib unix)
+  (libraries calendar csv hex re rresult sexplib unix camlp-streams)
   (preprocess
     (pps ppx_sexp_conv ppx_deriving.show))
   (wrapped false)
