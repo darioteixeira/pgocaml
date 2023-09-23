@@ -1009,25 +1009,29 @@ let describe_connection ?host ?port ?user ?password ?database
       try Sys.getenv "PGDATABASE"
       with Not_found -> user in
 
-  (* Hostname and port number. *)
+  (* Get the hostname or Unix domain socket directory. *)
   let host =
+    let host_or_socket s =
+      if String.length s > 0 && s.[0] = '/'
+      then `Unix_domain_socket_dir s
+      else `Hostname s
+    in
     match (host, unix_domain_socket_dir) with
     | (Some _), (Some _) ->
       raise (Failure "describe_connection: it's invalid to specify both a HOST and a unix domain socket directory")
-    | (Some s), None when String.length s > 0 && String.get s 0 = '/' ->
-      `Unix_domain_socket_dir s
     | (Some s), None ->
-      `Hostname s
+      host_or_socket s
     | None, (Some s) ->
       `Unix_domain_socket_dir s
     | None, None ->
       try
-        `Hostname (Sys.getenv "PGHOST")
+        host_or_socket (Sys.getenv "PGHOST")
       with
         Not_found -> (* fall back on Unix domain socket. *)
           `Unix_domain_socket_dir PGOCaml_config.default_unix_domain_socket_dir
   in
 
+  (* Get the port number. *)
   let port =
     match port with
     | Some port -> port
