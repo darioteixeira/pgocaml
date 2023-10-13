@@ -191,6 +191,7 @@ let parse_flags flags loc =
   let comment_src_loc = ref (PGOCaml.comment_src_loc ()) in
   let show = ref None in
   let load_custom_from = ref None in
+  let vars = ref [] in
   List.iter (
     function
     | "execute" -> f_execute := true
@@ -227,6 +228,8 @@ let parse_flags flags loc =
     | str when String.starts_with str "load_custom_from=" ->
         let txt = String.sub str 17 (String.length str - 17) in
         load_custom_from := Some ((Unix.getcwd ()) ^ "/" ^ txt)
+    | str when String.starts_with str "var=" ->
+      vars := !vars @ [ String.sub str 4 (String.length str - 4) ]
     | str ->
       loc_raise loc (
         Failure ("Unknown flag: " ^ str)
@@ -241,7 +244,7 @@ let parse_flags flags loc =
   let port = !port in
   let unix_domain_socket_dir = !unix_domain_socket_dir in
   let key = PGOCaml.describe_connection ?host ?user ?password ?database ?port ?unix_domain_socket_dir () in
-  key, f_execute, f_nullable_results, !comment_src_loc, !show, !load_custom_from
+  key, f_execute, f_nullable_results, !comment_src_loc, !show, !load_custom_from, !vars
 
 let mk_conversions ?load_custom_from ~loc ~dbh results =
   List.mapi (
@@ -307,7 +310,8 @@ let mk_listpat ~loc results =
 
 let pgsql_expand ~genobject ?(flags = []) loc dbh query =
   let open Rresult in
-  let (key, f_execute, f_nullable_results, comment_src_loc, show, load_custom_from) = parse_flags flags loc in
+  let key, f_execute, f_nullable_results, comment_src_loc, show, load_custom_from, vars =
+    parse_flags flags loc in
   let query =
     if comment_src_loc
     then
@@ -321,6 +325,11 @@ let pgsql_expand ~genobject ?(flags = []) loc dbh query =
     else
       query
   in
+  let query = List.fold_left (fun q v ->
+      match Sys.getenv_opt v with
+      | None -> q
+      | Some nv ->
+        Re.Str.global_replace (Re.Str.regexp ("\\$" ^ v)) nv q) query vars in
   (* Connect, if necessary, to the database. *)
   get_connection ~loc key
   >>= fun my_dbh ->
