@@ -104,5 +104,5 @@ need to be reoptimised each time.
 3. Further reading
 ------------------
 
-Now go and read: BUGS.txt, pGOCaml.mli, pa_pgsql.ml4
+Now go and read: BUGS.txt, pGOCaml.mli
 

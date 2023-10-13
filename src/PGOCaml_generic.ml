@@ -170,7 +170,7 @@ val verbose : int ref
 val set_private_data : 'a t -> 'a -> unit
 (** Attach some private data to the database handle.
   *
-  * NB. The pa_pgsql camlp4 extension uses this for its own purposes, which
+  * NB. The ppx_pgsql extension uses this for its own purposes, which
   * means that in most programs you will not be able to attach private data
   * to the database handle.
   *)
@@ -179,7 +179,7 @@ val private_data : 'a t -> 'a
 (** Retrieve some private data previously attached to the database handle.
   * If no data has been attached, raises [Not_found].
   *
-  * NB. The pa_pgsql camlp4 extension uses this for its own purposes, which
+  * NB. The ppx_pgsql extension uses this for its own purposes, which
   * means that in most programs you will not be able to attach private data
   * to the database handle.
   *)
@@ -187,7 +187,7 @@ val private_data : 'a t -> 'a
 val uuid : 'a t -> string
 
 type pa_pg_data = (string, bool) Hashtbl.t
-(** When using pa_pgsql, database handles have type
+(** When using ppx_pgsql, database handles have type
   * [PGOCaml.pa_pg_data PGOCaml.t]
   *)
 
