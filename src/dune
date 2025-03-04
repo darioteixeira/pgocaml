@@ -19,8 +19,10 @@
 (library
   (name PGOCaml)
   (public_name pgocaml)
-  (libraries calendar csv hex re rresult sexplib unix camlp-streams)
-  (preprocess
-    (pps ppx_sexp_conv ppx_deriving.show))
+  (libraries calendar csv hex re rresult sexplib unix camlp-streams
+    (select scram.ml from
+      (base64 digestif -> scram.optional.ml)
+      (-> scram.dummy.ml)))
+  (preprocess (pps ppx_sexp_conv ppx_deriving.show))
   (wrapped false)
-  (modules PGOCaml_aux PGOCaml PGOCaml_generic PGOCaml_config))
+  (modules scram PGOCaml_aux PGOCaml PGOCaml_generic PGOCaml_config))

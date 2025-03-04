@@ -447,13 +447,16 @@ let add_int32 (buf, _) i =
   Buffer.add_char buf (Char.unsafe_chr ((base lsr 8) land 0xff));
   Buffer.add_char buf (Char.unsafe_chr (base land 0xff))
 
-let add_string_no_trailing_nil (buf, _) str =
+let add_bytes (buf, _) str =
+  Buffer.add_string buf str
+
+let add_string_no_trailing_nil msg str =
   (* Check the string doesn't contain '\0' characters. *)
   if String.contains str '\000' then
     raise (Error (sprintf "PGOCaml: string contains ASCII NIL character: %S" str));
   if String.length str > 0x3fff_ffff then
     raise (Error "PGOCaml: string is too long.");
-  Buffer.add_string buf str
+  add_bytes msg str
 
 let add_string msg str =
   add_string_no_trailing_nil msg str;
@@ -538,6 +541,12 @@ type msg_t =
   | AuthenticationCryptPassword of string
   | AuthenticationMD5Password of string
   | AuthenticationSCMCredential
+  | AuthenticationGSS
+  | AuthenticationGSSContinue of string
+  | AuthenticationSSPI
+  | AuthenticationSASL of string list
+  | AuthenticationSASLContinue of string
+  | AuthenticationSASLFinal of string
   | BackendKeyData of int32 * int32
   | BindComplete
   | CloseComplete
@@ -564,6 +573,13 @@ let string_of_msg_t = function
   | AuthenticationMD5Password str ->
       sprintf "AuthenticationMD5Password %S" str
   | AuthenticationSCMCredential -> "AuthenticationMD5Password"
+  | AuthenticationGSS -> "AuthenticationGSS"
+  | AuthenticationGSSContinue str ->
+      sprintf "AuthenticationGSSContinue %S" str
+  | AuthenticationSSPI -> "AuthenticationSSPI"
+  | AuthenticationSASL mechanisms -> sprintf "AuthenticationSASL %S" (String.concat "," mechanisms)
+  | AuthenticationSASLContinue str -> sprintf "AuthenticationSASLContinue %S" str
+  | AuthenticationSASLFinal str -> sprintf "AuthenticationSASLFinal %S" str
   | BackendKeyData (i1, i2) ->
       sprintf "BackendKeyData %ld, %ld" i1 i2
   | BindComplete -> "BindComplete"
@@ -682,25 +698,44 @@ let parse_backend_message (typ, msg) =
   in
   let get_n_bytes n = String.init n (fun _ -> get_char "get_n_bytes") in
   let get_char () = get_char "get_char" in
-  (*let get_byte () = get_byte "get_byte" in*)
-
+  let get_strings () =
+    let rec loop acc =
+      try
+        let s = get_string () in
+        loop (s :: acc)
+      with _ -> List.rev acc in
+    loop [] in
   let msg =
     match typ with
     | 'R' ->
-	let t = get_int32 () in
+        let t = get_int32 () in
 	(match t with
 	 | 0l -> AuthenticationOk
 	 | 2l -> AuthenticationKerberosV5
 	 | 3l -> AuthenticationCleartextPassword
 	 | 4l ->
-	     let salt = String.init 2 (fun _ -> get_char ()) in
+	     let salt = get_n_bytes 2 in
 	     AuthenticationCryptPassword salt
 	 | 5l ->
-	     let salt = String.init 4 (fun _ -> get_char ()) in
+	     let salt = get_n_bytes 4 in
 	     AuthenticationMD5Password salt
-	 | 6l -> AuthenticationSCMCredential
-	 | _ -> UnknownMessage (typ, msg)
-	);
+         | 6l -> AuthenticationSCMCredential
+         | 7l -> AuthenticationGSS
+         | 8l ->
+             let bytes = get_n_bytes (String.length msg) in
+             AuthenticationGSSContinue bytes
+         | 9l -> AuthenticationSSPI
+         | 10l ->
+             let mechanisms = get_strings () in
+             AuthenticationSASL mechanisms
+         | 11l ->
+             let bytes = get_n_bytes (String.length msg - 4) in
+             AuthenticationSASLContinue bytes
+         | 12l ->
+             let bytes = get_n_bytes (String.length msg - 4) in
+             AuthenticationSASLFinal bytes
+         | _ -> UnknownMessage (typ, msg)
+        );
 
     | 'E' ->
 	let strs = ref [] in
@@ -1125,7 +1160,7 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
     add_byte msg 0;
 
     (* Loop around here until the database gives a ReadyForQuery message. *)
-    let rec loop msg =
+    let rec loop ?sasl msg =
       (match msg with
 	| Some msg -> send_recv conn msg
 	| None -> receive_message conn) >>= fun msg ->
@@ -1134,34 +1169,60 @@ let connect ?host ?port ?user ?password ?database ?unix_domain_socket_dir ?desc
       | ReadyForQuery _ -> return () (* Finished connecting! *)
       | BackendKeyData _ ->
 	  (* XXX We should save this key. *)
-	  loop None
-      | AuthenticationOk -> loop None
+	  loop ?sasl None
+      | AuthenticationOk -> loop ?sasl None
       | AuthenticationKerberosV5 ->
 	  fail (Error "PGOCaml: Kerberos authentication not supported")
       | AuthenticationCleartextPassword ->
 	  let msg = new_message 'p' in (* PasswordMessage *)
 	  add_string msg password;
-	  loop (Some msg)
+	  loop ?sasl (Some msg)
       | AuthenticationCryptPassword _salt ->
 	  (* Crypt password not supported because there is no crypt(3) function
 	   * in OCaml.
 	   *)
-	  fail (Error "PGOCaml: crypt password authentication not supported")
+	  fail (Error "PGOCaml: crypt password is deprecated since version 8.4")
       | AuthenticationMD5Password salt ->
-	  (*	(* This is a guess at how the salt is used ... *)
-		let password = salt ^ password in
-		let password = Digest.string password in*)
 	  let password = "md5" ^ Digest.to_hex (Digest.string (Digest.to_hex (Digest.string (password ^ user)) ^ salt)) in
 	  let msg = new_message 'p' in (* PasswordMessage *)
 	  add_string msg password;
-	  loop (Some msg)
+          loop ?sasl (Some msg)
+      | AuthenticationSASL mechanisms ->
+          begin match Scram.client_first_message mechanisms with
+              | Error e -> fail (Error e)
+              | Ok (s, mechanism, client_info) ->
+                  let msg = new_message 'p' in
+                  add_string msg mechanism;
+                  add_int32 msg (Int32.of_int @@ String.length s);
+                  add_bytes msg s;
+                  loop ~sasl:(`client_info client_info) (Some msg)
+          end
+      | AuthenticationSASLContinue str ->
+          begin match sasl with
+              | Some `client_info client_info ->
+                  begin match Scram.client_final_message ~client_info ~password str with
+                     | Error e -> fail (Error e)
+                     | Ok (s, signature) ->
+                         let msg = new_message 'p' in
+                         add_bytes msg s;
+                         loop ~sasl:(`signature signature) (Some msg)
+                  end
+              | _ -> fail (Error "PGOCaml: SASL client information not available")
+          end
+      | AuthenticationSASLFinal str ->
+          begin match sasl with
+              | Some `signature signature ->
+                  if str = "v=" ^ signature then loop None
+                  else fail (Error "PGOCaml: SASL server signature not verified")
+              | _ -> fail (Error "PGOCaml: SASL signature not available")
+          end
       | AuthenticationSCMCredential ->
 	  fail (Error "PGOCaml: SCM Credential authentication not supported")
       | ErrorResponse err ->
 	  pg_error err
       | _ ->
 	  (* Silently ignore unknown or unexpected message types. *)
-	  loop None
+	  loop ?sasl None
     in
     loop (Some msg) >>= fun () ->
 
